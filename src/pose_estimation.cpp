@@ -79,7 +79,7 @@ geometry_msgs::msg::Transform tf_from_cv(const cv::Mat_<double>& tvec, const cv:
 //     return tf_from_eigen(Eigen::Map<const Eigen::Vector3d>(pose.t->data), Eigen::Map<const Mat3>(pose.R->data));
 // };
 
-estim_pose_f apriltag_homography = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
+pose_estimation_f apriltag_homography = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
     // apriltag_detection_info_t info;
     // info.det = detection;
     // info.tagsize = tagsize;
@@ -102,7 +102,7 @@ estim_pose_f apriltag_homography = [](apriltag_detection_t* const detection, con
     return tf_from_apriltag_pose(pose);
 };
 
-estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
+pose_estimation_f solve_pnp = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
     const double half_tagsize = 0.5 * tagsize;
     // std::vector<cv::Point3d> objectPoints;
     // objectPoints.emplace_back(-half_tagsize, -half_tagsize, 0);
@@ -137,7 +137,7 @@ estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const std::ar
     return tf_from_cv(tvec, rvec);
 };
 
-const std::unordered_map<std::string, estim_pose_f> estim_pose_fun{
+const std::unordered_map<std::string, pose_estimation_f> pose_estimation_methods{
     // {"from_homography", from_homography},
     // {"apriltag_orthogonal_iteration", apriltag_orthogonal_iteration},
     {"homography", apriltag_homography},

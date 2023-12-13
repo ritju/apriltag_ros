@@ -82,7 +82,7 @@ private:
     const rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
     tf2_ros::TransformBroadcaster tf_broadcaster;
 
-    estim_pose_f estimate_pose;
+    pose_estimation_f estimate_pose = nullptr;
 
     void onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img, const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci);
 
@@ -111,8 +111,8 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     const auto frames = declare_parameter("tag.frames", std::vector<std::string>{}, descr("tag frame names per id", true));
     const auto sizes = declare_parameter("tag.sizes", std::vector<double>{}, descr("tag sizes per id", true));
 
-    // get method for estimating tag pose from homography
-    estimate_pose = estim_pose_fun.at(declare_parameter("pose_method", "pnp", descr("pose estimation method", true)));
+    // get method for estimating tag pose
+    estimate_pose = pose_estimation_methods.at(declare_parameter("pose_estimation_method", "pnp", descr("pose estimation method", true)));
 
     // detector parameters in "detector" namespace
     declare_parameter("detector.threads", td->nthreads, descr("number of threads"));
@@ -213,7 +213,9 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         // set child frame name by generic tag name or configured tag name
         tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : std::string(det->family->name) + ":" + std::to_string(det->id);
         const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
-        tf.transform = estimate_pose(det, intrinsics, size);
+        if(estimate_pose != nullptr) {
+            tf.transform = estimate_pose(det, intrinsics, size);
+        }
 
         tfs.push_back(tf);
     }
