@@ -3,7 +3,6 @@
 #include <apriltag/apriltag_pose.h>
 #include <apriltag/common/homography.h>
 #include <opencv2/calib3d.hpp>
-// #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/quaternion.hpp>
 
 
@@ -41,60 +40,8 @@ geometry_msgs::msg::Transform tf_from_cv(const cv::Mat_<double>& tvec, const cv:
     return t;
 }
 
-// estim_pose_f from_homography = [](const apriltag_detection_t* const detection, const Mat3& P, double size) -> geometry_msgs::msg::Transform {
-//     // compute extrinsic camera parameter
-//     // https://dsp.stackexchange.com/a/2737/31703
-//     // H = K * T  =>  T = K^(-1) * H
-//     const Mat3 T = P.inverse() * Eigen::Map<const Mat3>(detection->H->data);
-//     Mat3 R;
-//     R.col(0) = T.col(0).normalized();
-//     R.col(1) = T.col(1).normalized();
-//     R.col(2) = R.col(0).cross(R.col(1));
-
-//     // rotate by half rotation about x-axis to have z-axis
-//     // point upwards orthogonal to the tag plane
-//     R.col(1) *= -1;
-//     R.col(2) *= -1;
-
-//     // the corner coordinates of the tag in the canonical frame are (+/-1, +/-1)
-//     // hence the scale is half of the edge size
-//     const Eigen::Vector3d tt = T.rightCols<1>() / ((T.col(0).norm() + T.col(0).norm()) / 2.0) * (size / 2.0);
-
-//     return tf_from_eigen(tt, R);
-// };
-
-// estim_pose_f apriltag_orthogonal_iteration = [](apriltag_detection_t* const detection, const Mat3& P, double tagsize) -> geometry_msgs::msg::Transform {
-//     // https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#pose-estimation
-//     apriltag_detection_info_t info;
-//     info.det = detection;
-//     info.tagsize = tagsize;
-//     info.fx = P(0, 0);
-//     info.fy = P(1, 1);
-//     info.cx = P(0, 1);
-//     info.cy = P(1, 0);
-
-//     apriltag_pose_t pose;
-//     estimate_tag_pose(&info, &pose);
-
-//     return tf_from_eigen(Eigen::Map<const Eigen::Vector3d>(pose.t->data), Eigen::Map<const Mat3>(pose.R->data));
-// };
-
 pose_estimation_f apriltag_homography = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
-    // apriltag_detection_info_t info;
-    // info.det = detection;
-    // info.tagsize = tagsize;
-    // info.fx = intr[0];
-    // info.fy = intr[1];
-    // info.cx = intr[2];
-    // info.cy = intr[3];
-
-    apriltag_detection_info_t info = {
-        detection,
-        tagsize,
-        intr[0],
-        intr[1],
-        intr[2],
-        intr[3]};
+    apriltag_detection_info_t info = {detection, tagsize, intr[0], intr[1], intr[2], intr[3]};
 
     apriltag_pose_t pose;
     estimate_pose_for_tag_homography(&info, &pose);
@@ -104,12 +51,6 @@ pose_estimation_f apriltag_homography = [](apriltag_detection_t* const detection
 
 pose_estimation_f solve_pnp = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
     const double half_tagsize = 0.5 * tagsize;
-    // std::vector<cv::Point3d> objectPoints;
-    // objectPoints.emplace_back(-half_tagsize, -half_tagsize, 0);
-    // objectPoints.emplace_back(+half_tagsize, -half_tagsize, 0);
-    // objectPoints.emplace_back(+half_tagsize, +half_tagsize, 0);
-    // objectPoints.emplace_back(-half_tagsize, +half_tagsize, 0);
-
     const std::vector<cv::Point3d> objectPoints{{-half_tagsize, -half_tagsize, 0}, {+half_tagsize, -half_tagsize, 0}, {+half_tagsize, +half_tagsize, 0}, {-half_tagsize, +half_tagsize, 0}};
 
     std::vector<cv::Point2d> imagePoints;
@@ -124,22 +65,17 @@ pose_estimation_f solve_pnp = [](apriltag_detection_t* const detection, const st
 
     cv::Mat rvec, tvec;
     cv::Matx33d cameraMatrix;
-    // cv::eigen2cv(P, cameraMatrix);
     cameraMatrix(0, 0) = intr[0];// fx
     cameraMatrix(1, 1) = intr[1];// fy
     cameraMatrix(0, 2) = intr[2];// cx
     cameraMatrix(1, 2) = intr[3];// cy
     // with "SOLVEPNP_IPPE_SQUARE"?
     cv::solvePnP(objectPoints, imagePoints, cameraMatrix, {}, rvec, tvec);
-    //    cv::Matx33d R;
-    //    cv::Rodrigues(rvec, R);
 
     return tf_from_cv(tvec, rvec);
 };
 
 const std::unordered_map<std::string, pose_estimation_f> pose_estimation_methods{
-    // {"from_homography", from_homography},
-    // {"apriltag_orthogonal_iteration", apriltag_orthogonal_iteration},
     {"homography", apriltag_homography},
     {"pnp", solve_pnp},
 };
