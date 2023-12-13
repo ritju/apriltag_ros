@@ -1,5 +1,5 @@
 // ros
-#include "homography_to_pose.hpp"
+#include "pose_estimation.hpp"
 #include <apriltag_msgs/msg/april_tag_detection.hpp>
 #include <apriltag_msgs/msg/april_tag_detection_array.hpp>
 #ifdef cv_bridge_HPP
@@ -19,9 +19,6 @@
 #include "tag_functions.hpp"
 #include <apriltag.h>
 
-//#include <Eigen/Dense>
-
-//#define _GLIBCXX_USE_CXX11_ABI 1
 
 
 #define IF(N, V) \
@@ -59,8 +56,6 @@ descr(const std::string& description, const bool& read_only = false)
 
     return descr;
 }
-
-//...
 
 class AprilTagNode : public rclcpp::Node {
 public:
@@ -118,7 +113,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     const auto sizes = declare_parameter("tag.sizes", std::vector<double>{}, descr("tag sizes per id", true));
 
     // get method for estimating tag pose from homography
-    estimate_pose = estim_pose_fun.at(declare_parameter("pose_method", "pnp", descr("TODO", true)));
+    estimate_pose = estim_pose_fun.at(declare_parameter("pose_method", "pnp", descr("pose estimation method", true)));
 
     // detector parameters in "detector" namespace
     declare_parameter("detector.threads", td->nthreads, descr("number of threads"));
@@ -165,9 +160,7 @@ AprilTagNode::~AprilTagNode()
 void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
-    // camera intrinsic matrix for rectified images
-    // const Mat3 P = Eigen::Map<const Eigen::Matrix<double, 3, 4, Eigen::RowMajor>>(msg_ci->p.data()).leftCols<3>();
-
+    // camera intrinsics for raw images
     const std::array<double, 4> intrinsics = {msg_ci->p.data()[0], msg_ci->p.data()[5], msg_ci->p.data()[2], msg_ci->p.data()[6]};
 
     // convert to 8bit monochrome image
