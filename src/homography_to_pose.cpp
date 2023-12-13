@@ -1,20 +1,21 @@
 #include "homography_to_pose.hpp"
 #include <apriltag/apriltag_pose.h>
 #include <apriltag/common/homography.h>
+#include <Eigen/Dense>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/core/eigen.hpp>
+// #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/quaternion.hpp>
 
 
-geometry_msgs::msg::Transform tf_from_eigen(const Eigen::Vector3d& translation, const Mat3& rotation)
+geometry_msgs::msg::Transform tf_from_apriltag_pose(const apriltag_pose_t &pose)
 {
-    const Eigen::Quaterniond q(rotation);
+    const Eigen::Quaterniond q(Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(pose.R->data));
 
     geometry_msgs::msg::Transform t;
 
-    t.translation.x = translation.x();
-    t.translation.y = translation.y();
-    t.translation.z = translation.z();
+    t.translation.x = pose.t->data[0];
+    t.translation.y = pose.t->data[1];
+    t.translation.z = pose.t->data[2];
     t.rotation.w = q.w();
     t.rotation.x = q.x();
     t.rotation.y = q.y();
@@ -78,32 +79,48 @@ geometry_msgs::msg::Transform tf_from_cv(const cv::Mat_<double>& tvec, const cv:
 //     return tf_from_eigen(Eigen::Map<const Eigen::Vector3d>(pose.t->data), Eigen::Map<const Mat3>(pose.R->data));
 // };
 
-estim_pose_f apriltag_homography = [](apriltag_detection_t* const detection, const Mat3& P, double tagsize) -> geometry_msgs::msg::Transform {
-    apriltag_detection_info_t info;
-    info.det = detection;
-    info.tagsize = tagsize;
-    info.fx = P(0, 0);
-    info.fy = P(1, 1);
-    info.cx = P(0, 1);
-    info.cy = P(1, 0);
+estim_pose_f apriltag_homography = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
+    // apriltag_detection_info_t info;
+    // info.det = detection;
+    // info.tagsize = tagsize;
+    // info.fx = intr[0];
+    // info.fy = intr[1];
+    // info.cx = intr[2];
+    // info.cy = intr[3];
+
+    apriltag_detection_info_t info = {
+        detection,
+        tagsize,
+        intr[0],
+        intr[1],
+        intr[2],
+        intr[3]
+    };
 
     apriltag_pose_t pose;
     estimate_pose_for_tag_homography(&info, &pose);
 
-    return tf_from_eigen(Eigen::Map<const Eigen::Vector3d>(pose.t->data), Eigen::Map<const Mat3>(pose.R->data));
+    return tf_from_apriltag_pose(pose);
 };
 
-estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const Mat3& P, double tagsize) -> geometry_msgs::msg::Transform {
-    std::vector<cv::Point3d> objectPoints;
+estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize) -> geometry_msgs::msg::Transform {
     const double half_tagsize = 0.5 * tagsize;
-    objectPoints.emplace_back(-half_tagsize, -half_tagsize, 0);
-    objectPoints.emplace_back(+half_tagsize, -half_tagsize, 0);
-    objectPoints.emplace_back(+half_tagsize, +half_tagsize, 0);
-    objectPoints.emplace_back(-half_tagsize, +half_tagsize, 0);
+    // std::vector<cv::Point3d> objectPoints;
+    // objectPoints.emplace_back(-half_tagsize, -half_tagsize, 0);
+    // objectPoints.emplace_back(+half_tagsize, -half_tagsize, 0);
+    // objectPoints.emplace_back(+half_tagsize, +half_tagsize, 0);
+    // objectPoints.emplace_back(-half_tagsize, +half_tagsize, 0);
+
+    const std::vector<cv::Point3d> objectPoints = {
+        {-half_tagsize, -half_tagsize, 0},
+        {+half_tagsize, -half_tagsize, 0},
+        {+half_tagsize, +half_tagsize, 0},
+        {-half_tagsize, +half_tagsize, 0}
+    };
 
     std::vector<cv::Point2d> imagePoints;
-    double tag_x[4] = {-1, 1, 1, -1};
-    double tag_y[4] = {1, 1, -1, -1};
+    constexpr double tag_x[4] = {-1, 1, 1, -1};
+    constexpr double tag_y[4] = {1, 1, -1, -1};
     for(int i = 0; i < 4; i++) {
         // Homography projection taking tag local frame coordinates to image pixels
         double im_x, im_y;
@@ -113,7 +130,11 @@ estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const Mat3& P
 
     cv::Mat rvec, tvec;
     cv::Matx33d cameraMatrix;
-    cv::eigen2cv(P, cameraMatrix);
+    // cv::eigen2cv(P, cameraMatrix);
+    cameraMatrix(0, 0) = intr[0]; // fx
+    cameraMatrix(1, 1) = intr[1]; // fy
+    cameraMatrix(0, 2) = intr[2]; // cx
+    cameraMatrix(1, 2) = intr[3]; // cy
     // with "SOLVEPNP_IPPE_SQUARE"?
     cv::solvePnP(objectPoints, imagePoints, cameraMatrix, {}, rvec, tvec);
     //    cv::Matx33d R;

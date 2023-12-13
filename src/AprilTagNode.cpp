@@ -118,7 +118,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     const auto sizes = declare_parameter("tag.sizes", std::vector<double>{}, descr("tag sizes per id", true));
 
     // get method for estimating tag pose from homography
-    estimate_pose = estim_pose_fun.at(declare_parameter("pose_method", "from_homography", descr("TODO", true)));
+    estimate_pose = estim_pose_fun.at(declare_parameter("pose_method", "pnp", descr("TODO", true)));
 
     // detector parameters in "detector" namespace
     declare_parameter("detector.threads", td->nthreads, descr("number of threads"));
@@ -166,7 +166,9 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
     // camera intrinsic matrix for rectified images
-    const Mat3 P = Eigen::Map<const Eigen::Matrix<double, 3, 4, Eigen::RowMajor>>(msg_ci->p.data()).leftCols<3>();
+    // const Mat3 P = Eigen::Map<const Eigen::Matrix<double, 3, 4, Eigen::RowMajor>>(msg_ci->p.data()).leftCols<3>();
+
+    const std::array<double, 4> intrinsics = {msg_ci->p.data()[0], msg_ci->p.data()[5], msg_ci->p.data()[2], msg_ci->p.data()[6]};
 
     // convert to 8bit monochrome image
     const cv::Mat img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
@@ -219,7 +221,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         // set child frame name by generic tag name or configured tag name
         tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : std::string(det->family->name) + ":" + std::to_string(det->id);
         const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
-        tf.transform = estimate_pose(det, P, size);
+        tf.transform = estimate_pose(det, intrinsics, size);
 
         tfs.push_back(tf);
     }
