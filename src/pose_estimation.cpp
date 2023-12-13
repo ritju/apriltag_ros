@@ -1,13 +1,13 @@
 #include "pose_estimation.hpp"
+#include <Eigen/Dense>
 #include <apriltag/apriltag_pose.h>
 #include <apriltag/common/homography.h>
-#include <Eigen/Dense>
 #include <opencv2/calib3d.hpp>
 // #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/quaternion.hpp>
 
 
-geometry_msgs::msg::Transform tf_from_apriltag_pose(const apriltag_pose_t &pose)
+geometry_msgs::msg::Transform tf_from_apriltag_pose(const apriltag_pose_t& pose)
 {
     const Eigen::Quaterniond q(Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(pose.R->data));
 
@@ -94,8 +94,7 @@ estim_pose_f apriltag_homography = [](apriltag_detection_t* const detection, con
         intr[0],
         intr[1],
         intr[2],
-        intr[3]
-    };
+        intr[3]};
 
     apriltag_pose_t pose;
     estimate_pose_for_tag_homography(&info, &pose);
@@ -111,12 +110,7 @@ estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const std::ar
     // objectPoints.emplace_back(+half_tagsize, +half_tagsize, 0);
     // objectPoints.emplace_back(-half_tagsize, +half_tagsize, 0);
 
-    const std::vector<cv::Point3d> objectPoints = {
-        {-half_tagsize, -half_tagsize, 0},
-        {+half_tagsize, -half_tagsize, 0},
-        {+half_tagsize, +half_tagsize, 0},
-        {-half_tagsize, +half_tagsize, 0}
-    };
+    const std::vector<cv::Point3d> objectPoints{{-half_tagsize, -half_tagsize, 0}, {+half_tagsize, -half_tagsize, 0}, {+half_tagsize, +half_tagsize, 0}, {-half_tagsize, +half_tagsize, 0}};
 
     std::vector<cv::Point2d> imagePoints;
     constexpr double tag_x[4] = {-1, 1, 1, -1};
@@ -131,10 +125,10 @@ estim_pose_f solve_pnp = [](apriltag_detection_t* const detection, const std::ar
     cv::Mat rvec, tvec;
     cv::Matx33d cameraMatrix;
     // cv::eigen2cv(P, cameraMatrix);
-    cameraMatrix(0, 0) = intr[0]; // fx
-    cameraMatrix(1, 1) = intr[1]; // fy
-    cameraMatrix(0, 2) = intr[2]; // cx
-    cameraMatrix(1, 2) = intr[3]; // cy
+    cameraMatrix(0, 0) = intr[0];// fx
+    cameraMatrix(1, 1) = intr[1];// fy
+    cameraMatrix(0, 2) = intr[2];// cx
+    cameraMatrix(1, 2) = intr[3];// cy
     // with "SOLVEPNP_IPPE_SQUARE"?
     cv::solvePnP(objectPoints, imagePoints, cameraMatrix, {}, rvec, tvec);
     //    cv::Matx33d R;

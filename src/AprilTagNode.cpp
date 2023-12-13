@@ -20,7 +20,6 @@
 #include <apriltag.h>
 
 
-
 #define IF(N, V) \
     if(assign_check(parameter, N, V)) continue;
 

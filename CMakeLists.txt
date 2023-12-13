@@ -53,13 +53,13 @@ target_link_libraries(tags apriltag::apriltag)
 set_property(TARGET tags PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_library(pose_estimation OBJECT src/pose_estimation.cpp)
+target_include_directories(pose_estimation PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(pose_estimation apriltag::apriltag Eigen3::Eigen ${OpenCV_LIBS})
 set_property(TARGET pose_estimation PROPERTY POSITION_INDEPENDENT_CODE ON)
 ament_target_dependencies(pose_estimation tf2_ros)
 
 add_library(AprilTagNode SHARED src/AprilTagNode.cpp)
 ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros image_transport cv_bridge)
-target_include_directories(AprilTagNode PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(AprilTagNode apriltag::apriltag tags pose_estimation Eigen3::Eigen ${OpenCV_LIBS})
 rclcpp_components_register_node(AprilTagNode PLUGIN "AprilTagNode" EXECUTABLE "apriltag_node")
 
