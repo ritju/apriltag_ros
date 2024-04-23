@@ -14,6 +14,11 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "tf2/utils.h"
+#include <sstream>
 
 // apriltag
 #include "tag_functions.hpp"
@@ -87,6 +92,9 @@ private:
     void onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img, const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci);
 
     rcl_interfaces::msg::SetParametersResult onParameter(const std::vector<rclcpp::Parameter>& parameters);
+
+
+    tf2::Transform tf_real_to_dummy;
 };
 
 RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagNode)
@@ -153,6 +161,11 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     else {
         throw std::runtime_error("Unsupported tag family: " + tag_family);
     }
+
+    tf_real_to_dummy.setIdentity();
+    tf2::Quaternion q_marker_real_to_dummy;
+    q_marker_real_to_dummy.setRPY(-M_PI / 2.0, M_PI / 2.0, 0.0);
+    tf_real_to_dummy.setRotation(q_marker_real_to_dummy);
 }
 
 AprilTagNode::~AprilTagNode()
@@ -212,17 +225,28 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         std::memcpy(msg_detection.homography.data(), det->H->data, sizeof(double) * 9);
         msg_detections.detections.push_back(msg_detection);
 
+        // tf from real to dummy
+        geometry_msgs::msg::TransformStamped stampedTransform_real_to_dummy;
+        std::stringstream ss_parent, ss_child;
+        ss_parent << "april" << det->family->name << ":" << det->id;
+        ss_child << "april" << det->family->name << ":" << det->id << "_dummy";
+        stampedTransform_real_to_dummy.header.frame_id = ss_parent.str();
+        stampedTransform_real_to_dummy.header.stamp = msg_img->header.stamp;
+        stampedTransform_real_to_dummy.child_frame_id = ss_child.str();
+        tf2::toMsg(tf_real_to_dummy, stampedTransform_real_to_dummy.transform);
+
         // 3D orientation and position
         geometry_msgs::msg::TransformStamped tf;
         tf.header = msg_img->header;
         // set child frame name by generic tag name or configured tag name
-        tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : std::string(det->family->name) + ":" + std::to_string(det->id);
+        tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : "april" + std::string(det->family->name) + ":" + std::to_string(det->id);
         const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
         if(estimate_pose != nullptr) {
             tf.transform = estimate_pose(det, intrinsics, size);
         }
 
         tfs.push_back(tf);
+        tfs.push_back(stampedTransform_real_to_dummy);
     }
 
     pub_detections->publish(msg_detections);
