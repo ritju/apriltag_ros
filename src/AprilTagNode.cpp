@@ -19,6 +19,11 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/utils.h"
 #include <sstream>
+#include "aruco_msgs/msg/pose_with_id.hpp"
+#include "aruco_msgs/msg/marker_and_mac.hpp"
+#include "aruco_msgs/msg/marker_and_mac_vector.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "capella_ros_service_interfaces/msg/charge_marker_visible.hpp"
 
 // apriltag
 #include "tag_functions.hpp"
@@ -95,6 +100,34 @@ private:
 
 
     tf2::Transform tf_real_to_dummy;
+    bool getTransform(
+        const std::string & refFrame, const std::string & childFrame,
+        geometry_msgs::msg::TransformStamped & transform);
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+    rclcpp::Publisher<aruco_msgs::msg::PoseWithId>::SharedPtr pose_with_id_pub;
+    rclcpp::Publisher<aruco_msgs::msg::MarkerAndMacVector>::SharedPtr id_and_mac_pub;
+    rclcpp::Publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>::SharedPtr detect_status;
+    rclcpp::TimerBase::SharedPtr id_mac_timer_;
+    rclcpp::TimerBase::SharedPtr id_selected_timer_;
+    rclcpp::TimerBase::SharedPtr marker_timer;
+    aruco_msgs::msg::MarkerAndMacVector msgs;
+    aruco_msgs::msg::MarkerAndMac msg;
+    std::string charger_id_;
+    bool id_selected = false;
+    float id_selected_lifecycle_;
+    std::vector<std::string> marker_id_and_bluetooth_mac_vector;
+    rclcpp::Time charger_id_time_start;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr charger_id_sub;
+    zarray_t* detections;
+    int marker_id;
+    
+
+    void id_mac_callback();
+    void id_selected_callback();
+    void charger_id_callback(std_msgs::msg::String msg);
+    void marker_visible_callback();
+    bool in_idRanges(int id);
 };
 
 RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagNode)
@@ -115,6 +148,9 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+	tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
     // read-only parameters
     const std::string tag_family = declare_parameter("family", "36h11", descr("tag family", true));
     tag_edge_size = declare_parameter("size", 1.0, descr("default tag size", true));
@@ -137,6 +173,28 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
 
     declare_parameter("max_hamming", 0, descr("reject detections with more corrected bits than allowed"));
     declare_parameter("profile", false, descr("print profiling information to stdout"));
+
+    declare_parameter("marker_id_and_bluetooth_mac_vec", std::vector<std::string>(), descr("the vector of marker id and bluetooth mac"));
+
+    this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0/94:C9:60:43:BE:07"});
+    RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
+
+	int id_mac_length = marker_id_and_bluetooth_mac_vector.size();
+	for (int ids_index = 0; ids_index < id_mac_length; ids_index++)
+	{
+		std::string id_and_mac = marker_id_and_bluetooth_mac_vector[ids_index];
+		int id_and_mac_length = id_and_mac.length();
+		int pos = id_and_mac.find('/');
+		int marker_id_;
+		std::string bluetooth_mac;
+		marker_id_ = atoi(id_and_mac.substr(0, pos).c_str());
+		bluetooth_mac = id_and_mac.substr(pos + 1, id_and_mac_length - pos -1);
+		RCLCPP_INFO(this->get_logger(), "marker_id_: %d", marker_id_);
+		RCLCPP_INFO(this->get_logger(), "bluetooth_mac: %s", bluetooth_mac.c_str());
+		msg.marker_id = marker_id_;
+		msg.bluetooth_mac = bluetooth_mac;
+		msgs.marker_and_mac_vector.push_back(msg);
+	}
 
     if(!frames.empty()) {
         if(ids.size() != frames.size()) {
@@ -166,12 +224,128 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     tf2::Quaternion q_marker_real_to_dummy;
     q_marker_real_to_dummy.setRPY(-M_PI / 2.0, M_PI / 2.0, 0.0);
     tf_real_to_dummy.setRotation(q_marker_real_to_dummy);
+
+    pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
+    detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
+    
+    marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
+	id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
+	id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_selected_callback, this));
+    charger_id_sub =  this->create_subscription<std_msgs::msg::String>("/charger/id",rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),std::bind(&AprilTagNode::charger_id_callback, this, std::placeholders::_1));
 }
 
 AprilTagNode::~AprilTagNode()
 {
     apriltag_detector_destroy(td);
     tf_destructor(tf);
+}
+
+void AprilTagNode::id_mac_callback()
+{
+	id_and_mac_pub->publish(msgs);
+}
+
+void AprilTagNode::id_selected_callback()
+{
+	if(id_selected)
+	{
+		rclcpp::Time now = this->get_clock()->now();
+		if ((now - charger_id_time_start).seconds() > id_selected_lifecycle_)
+		{
+			id_selected = false;
+		}
+	}
+}
+
+void AprilTagNode::charger_id_callback(std_msgs::msg::String msg)
+{
+	RCLCPP_INFO(this->get_logger(), "charger_id_callback");
+	RCLCPP_INFO(this->get_logger(), "msgs.marker_and_mac_vector.size(): %ld", msgs.marker_and_mac_vector.size());
+	charger_id_ = msg.data;
+    printf("123");
+	for (size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
+	{
+		
+		RCLCPP_INFO(this->get_logger(), "msg.data: %s", msg.data.c_str());
+		RCLCPP_INFO(this->get_logger(), "msgs.marker_and_mac_vector[i].bluetooth_mac: %s", msgs.marker_and_mac_vector[i].bluetooth_mac.c_str());
+		if(msg.data.compare(this->msgs.marker_and_mac_vector[i].bluetooth_mac) == 0)
+		{
+			
+			RCLCPP_INFO(this->get_logger(), "match");
+			id_selected = true;
+			marker_id = msgs.marker_and_mac_vector[i].marker_id;
+			charger_id_time_start = this->get_clock()->now();
+			break;
+		}
+	}
+    printf("abc");
+}
+
+void AprilTagNode::marker_visible_callback()
+{
+	// RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
+	if (zarray_size(detections) == 0)
+	{
+		capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
+		marker_detect_status.marker_visible = false;
+		detect_status->publish(marker_detect_status);
+	}
+	else if (zarray_size(detections) > 0)
+	{
+		for (int i = 0; i < zarray_size(detections); i++)
+		{
+			if (id_selected)
+			{
+				// RCLCPP_INFO(this->get_logger(), "id_selected");
+				// RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
+				// RCLCPP_INFO(this->get_logger(), "markers[i].id: %d", markers[i].id);
+				apriltag_detection_t* det;
+                zarray_get(detections, i, &det);
+                if (det->id == marker_id)
+				{
+					capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
+					marker_detect_status.marker_visible = true;
+					detect_status->publish(marker_detect_status);
+					break;
+				}
+				else
+				{
+					if (i == (zarray_size(detections) - 1))
+					{
+						capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
+						marker_detect_status.marker_visible = false;
+						detect_status->publish(marker_detect_status);
+					}
+				}			
+			}
+			else
+			{
+				apriltag_detection_t* det;
+                zarray_get(detections, i, &det);				
+				// RCLCPP_INFO(this->get_logger(), "id not selected");
+				// RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
+				// RCLCPP_INFO(this->get_logger(), "id in ranges: %d", in_idRanges(det->id));
+                if (in_idRanges(det->id))
+				{
+					capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
+					marker_detect_status.marker_visible = true;
+					detect_status->publish(marker_detect_status);
+					break;
+				}
+				else
+				{
+					if (i == (zarray_size(detections) - 1))
+					{
+						capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
+						marker_detect_status.marker_visible = false;
+						detect_status->publish(marker_detect_status);
+					}
+				}	
+			}
+		}
+	}
+
+
 }
 
 void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
@@ -187,7 +361,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
 
     // detect tags
     mutex.lock();
-    zarray_t* detections = apriltag_detector_detect(td, &im);
+    detections = apriltag_detector_detect(td, &im);
     mutex.unlock();
 
     if(profile)
@@ -255,6 +429,20 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     apriltag_detections_destroy(detections);
 }
 
+bool AprilTagNode::in_idRanges(int id)
+{
+	bool ret = false;
+	for(size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
+	{
+		if (id == msgs.marker_and_mac_vector[i].marker_id)
+		{
+			ret = true;
+			break;
+		}
+	}
+	return ret;
+}
+
 rcl_interfaces::msg::SetParametersResult
 AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
 {
@@ -280,4 +468,31 @@ AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
     result.successful = true;
 
     return result;
+}
+
+bool AprilTagNode::getTransform(
+	const std::string & refFrame, const std::string & childFrame,
+	geometry_msgs::msg::TransformStamped & transform)
+{
+	std::string errMsg;
+
+	if (!tf_buffer_->canTransform(
+		    refFrame, childFrame, tf2::TimePointZero,
+		    tf2::durationFromSec(0.5), &errMsg))
+	{
+		RCLCPP_ERROR_STREAM(this->get_logger(), "Unable to get pose from TF: " << errMsg);
+		return false;
+	} else {
+		try {
+			transform = tf_buffer_->lookupTransform(
+				refFrame, childFrame, tf2::TimePointZero, tf2::durationFromSec(
+					0.5));
+		} catch (const tf2::TransformException & e) {
+			RCLCPP_ERROR_STREAM(
+				this->get_logger(),
+				"Error in lookupTransform of " << childFrame << " in " << refFrame << " : " << e.what());
+			return false;
+		}
+	}
+	return true;
 }

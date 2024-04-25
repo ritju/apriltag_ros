@@ -45,6 +45,10 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Threads REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(apriltag 3.2 REQUIRED)
+find_package(aruco_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(capella_ros_service_interfaces REQUIRED)
+
 
 if(cv_bridge_VERSION VERSION_GREATER_EQUAL 3.3.0)
     add_compile_definitions(cv_bridge_HPP)
@@ -61,7 +65,7 @@ set_property(TARGET pose_estimation PROPERTY POSITION_INDEPENDENT_CODE ON)
 ament_target_dependencies(pose_estimation tf2_ros)
 
 add_library(AprilTagNode SHARED src/AprilTagNode.cpp)
-ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs image_transport cv_bridge)
+ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge)
 target_link_libraries(AprilTagNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(AprilTagNode PLUGIN "AprilTagNode" EXECUTABLE "apriltag_node")
 
