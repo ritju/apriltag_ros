@@ -150,6 +150,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
 {
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
 	tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    detections = new zarray_t;
 
     // read-only parameters
     const std::string tag_family = declare_parameter("family", "36h11", descr("tag family", true));
@@ -177,7 +178,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     declare_parameter("marker_id_and_bluetooth_mac_vec", std::vector<std::string>(), descr("the vector of marker id and bluetooth mac"));
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0/94:C9:60:43:BE:07"});
-    RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
+    // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
 
 	int id_mac_length = marker_id_and_bluetooth_mac_vector.size();
 	for (int ids_index = 0; ids_index < id_mac_length; ids_index++)
@@ -227,6 +228,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
 
     pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
     detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
+    id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("id_mac", 30);
     
     marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
 	id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
@@ -238,11 +240,13 @@ AprilTagNode::~AprilTagNode()
 {
     apriltag_detector_destroy(td);
     tf_destructor(tf);
+    delete detections;
 }
 
 void AprilTagNode::id_mac_callback()
 {
-	id_and_mac_pub->publish(msgs);
+	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 10000, "id_mac_callback");
+    id_and_mac_pub->publish(msgs);
 }
 
 void AprilTagNode::id_selected_callback()
@@ -261,91 +265,112 @@ void AprilTagNode::charger_id_callback(std_msgs::msg::String msg)
 {
 	RCLCPP_INFO(this->get_logger(), "charger_id_callback");
 	RCLCPP_INFO(this->get_logger(), "msgs.marker_and_mac_vector.size(): %ld", msgs.marker_and_mac_vector.size());
+    for (size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
+    {
+        RCLCPP_INFO(get_logger(), "Index %ld => marker_id: %ld, bluetooth_mac: %s", i, msgs.marker_and_mac_vector[i].marker_id, msgs.marker_and_mac_vector[i].bluetooth_mac.c_str());
+    }
 	charger_id_ = msg.data;
-    printf("123");
-	for (size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
-	{
-		
-		RCLCPP_INFO(this->get_logger(), "msg.data: %s", msg.data.c_str());
-		RCLCPP_INFO(this->get_logger(), "msgs.marker_and_mac_vector[i].bluetooth_mac: %s", msgs.marker_and_mac_vector[i].bluetooth_mac.c_str());
-		if(msg.data.compare(this->msgs.marker_and_mac_vector[i].bluetooth_mac) == 0)
-		{
-			
-			RCLCPP_INFO(this->get_logger(), "match");
-			id_selected = true;
-			marker_id = msgs.marker_and_mac_vector[i].marker_id;
-			charger_id_time_start = this->get_clock()->now();
-			break;
-		}
-	}
-    printf("abc");
+    if (charger_id_.compare("") == 0)
+    {
+        RCLCPP_INFO(get_logger(), "The topic /charger/id received is empty, do nothing.");
+    }
+    else
+    {        
+        RCLCPP_INFO(this->get_logger(), "/charger/id: %s", charger_id_.c_str());
+        for (size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
+        {
+            if(msg.data.compare(this->msgs.marker_and_mac_vector[i].bluetooth_mac) == 0)
+            {                
+                RCLCPP_INFO(this->get_logger(), "Found the charger/id: %s in marker_id_and_bluetooth_mac lists.", charger_id_.c_str());
+                id_selected = true;
+                marker_id = msgs.marker_and_mac_vector[i].marker_id;
+                charger_id_time_start = this->get_clock()->now();
+                break;
+            }
+            else
+            {
+                if (i == msgs.marker_and_mac_vector.size() - 1)
+                {
+                    RCLCPP_INFO(get_logger(), "Not found the charger/id: %s in marker_id_and_bluetooth_mac lists. Please check the marker_id_and_bluetooth_mac environment in docker-compose.yml", charger_id_.c_str());
+                }
+            }
+        }
+    }
+	
 }
 
 void AprilTagNode::marker_visible_callback()
 {
-	// RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
-	if (zarray_size(detections) == 0)
-	{
-		capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
-		marker_detect_status.marker_visible = false;
-		detect_status->publish(marker_detect_status);
-	}
-	else if (zarray_size(detections) > 0)
-	{
-		for (int i = 0; i < zarray_size(detections); i++)
-		{
-			if (id_selected)
-			{
-				// RCLCPP_INFO(this->get_logger(), "id_selected");
-				// RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
-				// RCLCPP_INFO(this->get_logger(), "markers[i].id: %d", markers[i].id);
-				apriltag_detection_t* det;
-                zarray_get(detections, i, &det);
-                if (det->id == marker_id)
-				{
-					capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
-					marker_detect_status.marker_visible = true;
-					detect_status->publish(marker_detect_status);
-					break;
-				}
-				else
-				{
-					if (i == (zarray_size(detections) - 1))
-					{
-						capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
-						marker_detect_status.marker_visible = false;
-						detect_status->publish(marker_detect_status);
-					}
-				}			
-			}
-			else
-			{
-				apriltag_detection_t* det;
-                zarray_get(detections, i, &det);				
-				// RCLCPP_INFO(this->get_logger(), "id not selected");
-				// RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
-				// RCLCPP_INFO(this->get_logger(), "id in ranges: %d", in_idRanges(det->id));
-                if (in_idRanges(det->id))
-				{
-					capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
-					marker_detect_status.marker_visible = true;
-					detect_status->publish(marker_detect_status);
-					break;
-				}
-				else
-				{
-					if (i == (zarray_size(detections) - 1))
-					{
-						capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
-						marker_detect_status.marker_visible = false;
-						detect_status->publish(marker_detect_status);
-					}
-				}	
-			}
-		}
-	}
-
-
+	RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "/marker_visible callback");
+    capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
+	if (detections)
+    {
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "apriltag detected");
+        if (zarray_size(detections) == 0)
+        {
+            RCLCPP_INFO(get_logger(), "detections's size == 0");
+            marker_detect_status.marker_visible = false;
+            detect_status->publish(marker_detect_status);
+        }
+        else if (zarray_size(detections) > 0)
+        {
+            RCLCPP_INFO(get_logger(), "detections's size > 0, size: %d, address: %p", zarray_size(detections), static_cast<void *>(detections));
+            RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "size2: %d, address: %p", zarray_size(detections), static_cast<void*>(detections));
+            for (int i = 0; i < zarray_size(detections); i++)
+            {
+                if (id_selected)
+                {
+                    // RCLCPP_INFO(this->get_logger(), "id_selected");
+                    // RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
+                    // RCLCPP_INFO(this->get_logger(), "markers[i].id: %d", markers[i].id);
+                    apriltag_detection_t* det;
+                    zarray_get(detections, i, &det);
+                    if (det->id == marker_id)
+                    {
+                        marker_detect_status.marker_visible = true;
+                        detect_status->publish(marker_detect_status);
+                        break;
+                    }
+                    else
+                    {
+                        if (i == (zarray_size(detections) - 1))
+                        {
+                            marker_detect_status.marker_visible = false;
+                            detect_status->publish(marker_detect_status);
+                        }
+                    }			
+                }
+                else
+                {
+                    apriltag_detection_t* det;
+                    zarray_get(detections, i, &det);				
+                    // RCLCPP_INFO(this->get_logger(), "id not selected");
+                    // RCLCPP_INFO(this->get_logger(), "marker_id: %d", marker_id);
+                    // RCLCPP_INFO(this->get_logger(), "id in ranges: %d", in_idRanges(det->id));
+                    if (in_idRanges(det->id))
+                    {
+                        marker_detect_status.marker_visible = true;
+                        detect_status->publish(marker_detect_status);
+                        break;
+                    }
+                    else
+                    {
+                        if (i == (zarray_size(detections) - 1))
+                        {
+                            marker_detect_status.marker_visible = false;
+                            detect_status->publish(marker_detect_status);
+                        }
+                    }	
+                }
+            }
+        }
+    }
+    else
+    {
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "apriltag not detected");
+        marker_detect_status.marker_visible = false;
+        detect_status->publish(marker_detect_status);
+    }    
 }
 
 void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
@@ -371,6 +396,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     msg_detections.header = msg_img->header;
 
     std::vector<geometry_msgs::msg::TransformStamped> tfs;
+    RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "size: %d, address: %p", zarray_size(detections), static_cast<void*>(detections));
 
     for(int i = 0; i < zarray_size(detections); i++) {
         apriltag_detection_t* det;
