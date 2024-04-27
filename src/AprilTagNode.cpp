@@ -101,6 +101,7 @@ private:
 
 
     tf2::Transform tf_real_to_dummy;
+    tf2::Transform tf_base_link_to_dummy_base_link;
     bool getTransform(
         const std::string & refFrame, const std::string & childFrame,
         geometry_msgs::msg::TransformStamped & transform);
@@ -221,14 +222,21 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
         throw std::runtime_error("Unsupported tag family: " + tag_family);
     }
 
+    // tf for marker to dummy marker
     tf_real_to_dummy.setIdentity();
     tf2::Quaternion q_marker_real_to_dummy;
     q_marker_real_to_dummy.setRPY(-M_PI / 2.0, M_PI / 2.0, 0.0);
     tf_real_to_dummy.setRotation(q_marker_real_to_dummy);
 
+    // tf for base_link to dummy base_link
+    tf_base_link_to_dummy_base_link.setIdentity();
+    tf2::Quaternion q_base_link_to_dummy_base_link;
+    q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
+    tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
+
     pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
     detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
-    id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("id_mac", 30);
+    id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
     
     marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
 	id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
@@ -454,7 +462,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         if (getTransform(ss_child.str(), "base_link", transform_stamped))
         {
             tf2::fromMsg(transform_stamped, dummyToBaselink);
-            tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink), pose_with_id_msg.pose.pose);
+            tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) * tf_base_link_to_dummy_base_link, pose_with_id_msg.pose.pose);
             pose_with_id_pub->publish(pose_with_id_msg);       
         }
     }

@@ -18,7 +18,7 @@ def launch_setup(context, *args, **kwargs):
             if marker_id_and_bluetooth_mac_vec == ['']:
                 raise
         else:
-            marker_id_and_bluetooth_mac_vec = ['0/94:C9:60:43:BE:07', '1/94:C9:60:43:BE:06']
+            marker_id_and_bluetooth_mac_vec = ['0/94:C9:60:43:BE:01', '1/94:C9:60:43:BE:06']
     except:
         print("Please input aruco marker_id and bluetooth_mac !")
 
