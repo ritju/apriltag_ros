@@ -388,7 +388,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     double start_time = this->now().seconds();
     detections = *apriltag_detector_detect(td, &im);
     double end_time = this->now().seconds();
-    RCLCPP_INFO(get_logger(), "compute detections cost time: %d ms", (int)round((end_time - start_time) * 1000));
+    RCLCPP_DEBUG(get_logger(), "compute detections cost time: %d ms", (int)round((end_time - start_time) * 1000));
     mutex.unlock();
 
     if(profile)
