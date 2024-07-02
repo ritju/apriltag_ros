@@ -111,13 +111,13 @@ private:
     rclcpp::Publisher<aruco_msgs::msg::MarkerAndMacVector>::SharedPtr id_and_mac_pub;
     rclcpp::Publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>::SharedPtr detect_status;
     rclcpp::TimerBase::SharedPtr id_mac_timer_;
-    rclcpp::TimerBase::SharedPtr id_selected_timer_;
+    // rclcpp::TimerBase::SharedPtr id_selected_timer_;
     rclcpp::TimerBase::SharedPtr marker_timer;
     aruco_msgs::msg::MarkerAndMacVector msgs;
     aruco_msgs::msg::MarkerAndMac msg;
     std::string charger_id_;
     bool id_selected = false;
-    float id_selected_lifecycle_;
+    // float id_selected_lifecycle_;
     std::vector<std::string> marker_id_and_bluetooth_mac_vector;
     rclcpp::Time charger_id_time_start;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr charger_id_sub;
@@ -126,7 +126,7 @@ private:
     
 
     void id_mac_callback();
-    void id_selected_callback();
+    // void id_selected_callback();
     void charger_id_callback(std_msgs::msg::String msg);
     void marker_visible_callback();
     bool in_idRanges(int id);
@@ -240,7 +240,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     
     marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
 	id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
-	id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_selected_callback, this));
+	// id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_selected_callback, this));
     charger_id_sub =  this->create_subscription<std_msgs::msg::String>("/charger/id",rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),std::bind(&AprilTagNode::charger_id_callback, this, std::placeholders::_1));
 }
 
@@ -256,17 +256,17 @@ void AprilTagNode::id_mac_callback()
     id_and_mac_pub->publish(msgs);
 }
 
-void AprilTagNode::id_selected_callback()
-{
-	if(id_selected)
-	{
-		rclcpp::Time now = this->get_clock()->now();
-		if ((now - charger_id_time_start).seconds() > id_selected_lifecycle_)
-		{
-			id_selected = false;
-		}
-	}
-}
+// void AprilTagNode::id_selected_callback()
+// {
+// 	if(id_selected)
+// 	{
+// 		rclcpp::Time now = this->get_clock()->now();
+// 		if ((now - charger_id_time_start).seconds() > id_selected_lifecycle_)
+// 		{
+// 			id_selected = false;
+// 		}
+// 	}
+// }
 
 void AprilTagNode::charger_id_callback(std_msgs::msg::String msg)
 {
@@ -279,17 +279,20 @@ void AprilTagNode::charger_id_callback(std_msgs::msg::String msg)
 	charger_id_ = msg.data;
     if (charger_id_.compare("") == 0)
     {
-        RCLCPP_INFO(get_logger(), "The topic /charger/id received is empty, do nothing.");
+        RCLCPP_INFO(get_logger(), "The topic /charger/id received is empty, set id_selected=false");
+        id_selected = false;
     }
     else
-    {        
+    {   
+        RCLCPP_INFO(get_logger(), "The topic /charger/id received is %s, set id_selected=true", charger_id_.c_str());
+        id_selected = true;     
         RCLCPP_INFO(this->get_logger(), "/charger/id: %s", charger_id_.c_str());
         for (size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
         {
             if(msg.data.compare(this->msgs.marker_and_mac_vector[i].bluetooth_mac) == 0)
             {                
                 RCLCPP_INFO(this->get_logger(), "Found the charger/id: %s in marker_id_and_bluetooth_mac lists.", charger_id_.c_str());
-                id_selected = true;
+                // id_selected = true;
                 marker_id = msgs.marker_and_mac_vector[i].marker_id;
                 charger_id_time_start = this->get_clock()->now();
                 break;
