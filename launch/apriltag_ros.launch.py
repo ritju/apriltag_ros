@@ -25,11 +25,13 @@ def launch_setup(context, *args, **kwargs):
     size = 0.10
     try:
         if 'APRILTAG_SIZE' in os.environ:
-            size = int(os.environ.get('marker_id_and_bluetooth_mac'))
+            size = float(os.environ.get('APRILTAG_SIZE'))
+            print(f'get apriltag size {size} from docker-compose.yaml file')
         else:
             size = 0.10
             print("Using default apriltag size 0.10.")
-    except:
+    except Exception as e:
+        print(f'exception: {str(e)}')
         print("Please input APRILTAG_SIZE in docker-compose.yaml")
     
     
