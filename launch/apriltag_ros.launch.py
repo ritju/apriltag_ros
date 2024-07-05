@@ -21,9 +21,21 @@ def launch_setup(context, *args, **kwargs):
             marker_id_and_bluetooth_mac_vec = ['0/94:C9:60:43:BE:01', '1/94:C9:60:43:BE:06']
     except:
         print("Please input aruco marker_id and bluetooth_mac !")
-
+    
+    size = 0.10
+    try:
+        if 'APRILTAG_SIZE' in os.environ:
+            size = int(os.environ.get('marker_id_and_bluetooth_mac'))
+        else:
+            size = 0.10
+            print("Using default apriltag size 0.10.")
+    except:
+        print("Please input APRILTAG_SIZE in docker-compose.yaml")
+    
+    
     apriltag_ros_extra_params = {
         'marker_id_and_bluetooth_mac_vec': marker_id_and_bluetooth_mac_vec,
+        'size': size
     }    
 
     # get pkg path
