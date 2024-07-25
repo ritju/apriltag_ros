@@ -140,6 +140,7 @@ private:
     tf2::Stamped<tf2::Transform> stamped_tf_camera_to_marker2; 
     std::vector<std::pair<int, geometry_msgs::msg::TransformStamped>> id_and_tf_vec;
     float similarity_threshold;
+    float radius_threshold;
     tf2::Stamped<tf2::Transform> camera_pose_last1;
     tf2::Stamped<tf2::Transform> camera_pose_last2;
     tf2::Stamped<tf2::Transform> camera_pose_current1;
@@ -203,12 +204,15 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     declare_parameter("marker_id_and_bluetooth_mac_vec", std::vector<std::string>(), descr("the vector of marker id and bluetooth mac"));
     declare_parameter("marker_frame_translation", -0.04, descr("The translation distance on Y axis from charge frame to marker1 frame."));
     declare_parameter("similarity_threshold", 0.96, descr("similarity_threshold to check tf's validity"));
+    declare_parameter("radius_threshold", 0.013, descr("radius_threshold to check tf's validity"));
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0:1/94:C9:60:43:BE:01"});
     // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
     this->get_parameter_or<float>("marker_frame_translation", marker_frame_translation, -0.04);
     this->get_parameter_or<float>("similarity_threshold", similarity_threshold, 0.96);
+    this->get_parameter_or<float>("radius_threshold", radius_threshold, 0.014);
     RCLCPP_INFO(get_logger(), "similarity_threshold: %f", similarity_threshold);
+    RCLCPP_INFO(get_logger(), "radius_threshold: %f", radius_threshold);
 
 	int id_mac_length = marker_id_and_bluetooth_mac_vector.size();
     RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector size: %d", id_mac_length);
@@ -648,10 +652,15 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         z_c = q_c.getZ();
         float similarity = w_f * w_c + x_f * x_c + y_f * y_c + z_f * z_c;
 
-        if (similarity > similarity_threshold && error_radius < 0.014)
+        if (similarity > similarity_threshold && error_radius < radius_threshold)
         {
             tfs.push_back(id_and_tf_vec[index_marker1].second);
             tfs.push_back(id_and_tf_vec[index_marker2].second);
+
+            auto end_time = this->get_clock()->now().seconds();
+            auto start_time = rclcpp::Time(msg_img->header.stamp).seconds();
+            auto delta_time = end_time - start_time;
+            RCLCPP_DEBUG(get_logger(), "cost time: %f second.", delta_time);
 
             // pub topic /pose_with_id
             aruco_msgs::msg::PoseWithId pose_with_id_msg;
@@ -666,7 +675,14 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         else
         {
             frame_error++;
-            // RCLCPP_INFO(get_logger(), "error tf detected, similarity: %f, threshold: %f", similarity, similarity_threshold);
+            if (similarity <= similarity_threshold)
+            {
+                RCLCPP_INFO(get_logger(), "error tf detected, similarity  : %f, threshold: %f", similarity, similarity_threshold);
+            }
+            if (error_radius >= radius_threshold)
+            {
+                RCLCPP_INFO(get_logger(), "error tf detected, error_raidus: %f, threshold: %f", error_radius, radius_threshold);
+            }
         }
 
         
@@ -714,11 +730,17 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
                     RCLCPP_INFO(get_logger(), "theta_dis1  : %f", theta_dis1);
                     RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
                     RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
-                    RCLCPP_INFO(get_logger(), "marker1_to_marker2 tf_current, theta_diff: %f", tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
+                    RCLCPP_INFO(get_logger(), "m1_m2 tf_c, x: %f, y: %f, theta_diff: %f", 
+                            tf_marker1_to_marker2_current.getOrigin()[0], tf_marker1_to_marker2_current.getOrigin()[1],
+                            tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
                 }
                 else
                 {
-                    // RCLCPP_INFO(get_logger(), "----------------------------------");
+                    RCLCPP_INFO(get_logger(), "----------------------------------");
+
+                    RCLCPP_INFO(get_logger(), "m1_m2 tf_c, x: %f, y: %f, theta_diff: %f", 
+                            tf_marker1_to_marker2_current.getOrigin()[0], tf_marker1_to_marker2_current.getOrigin()[1],
+                            tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
                     // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
                     // RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
                     // RCLCPP_INFO(get_logger(), "marker1_to_marker2 tf_current, theta_same: %f", tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));

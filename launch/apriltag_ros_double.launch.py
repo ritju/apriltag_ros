@@ -59,6 +59,18 @@ def launch_setup(context, *args, **kwargs):
     except Exception as e:
         print(f'exception: {str(e)}')
         print("Please input SIMILARITY_THRESHOLD in docker-compose.yml")
+
+    radius_threshold = 0.013
+    try :
+        if 'MARKER_FRAME_RADIUS_THRESHOLD' in os.environ:
+            radius_threshold = float(os.environ.get('MARKER_FRAME_RADIUS_THRESHOLD'))
+            print(f'Get radius_threshold from docker-compose.yml')
+        else:
+            radius_threshold = 0.013
+            print(f'Using default radius_threshold 0.013')
+    except Exception as e:
+        print(f'exception: {str(e)}')
+        print("Please input MARKER_FRAME_RADIUS_THRESHOLD in docker-compose.yml")
     
     
     apriltag_ros_extra_params = {
@@ -66,6 +78,7 @@ def launch_setup(context, *args, **kwargs):
         'size': size,
         'marker_frame_translation': marker_frame_translation,
         'similarity_threshold': similarity_threshold,
+        'radius_threshold': radius_threshold,
     }    
 
     # get pkg path
