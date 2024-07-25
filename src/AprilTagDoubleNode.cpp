@@ -687,111 +687,111 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
         
         // just for test data
-        if (similarity > similarity_threshold)
-        {
-            // tfs.push_back(id_and_tf_vec[index_marker1].second);
-            // tfs.push_back(id_and_tf_vec[index_marker2].second);
+        // if (similarity > similarity_threshold)
+        // {
+        //     // tfs.push_back(id_and_tf_vec[index_marker1].second);
+        //     // tfs.push_back(id_and_tf_vec[index_marker2].second);
 
-            // debug data
-            camera_pose_current1 = stamped_tf_camera_to_marker1;
-            camera_pose_current2 = stamped_tf_camera_to_marker2;
-            if (!pose_inited)
-            {
-                pose_inited = true;
-                camera_pose_last1 = camera_pose_current1;
-                camera_pose_last2 = camera_pose_current2;
-            }
-            else
-            {
-                float x_last1, y_last1, theta_last1, x_now1, y_now1, theta_now1;
-                float x_last2, y_last2, theta_last2, x_now2, y_now2, theta_now2;
-                float distance1, distance2, theta_dis1, theta_dis2;
+        //     // debug data
+        //     camera_pose_current1 = stamped_tf_camera_to_marker1;
+        //     camera_pose_current2 = stamped_tf_camera_to_marker2;
+        //     if (!pose_inited)
+        //     {
+        //         pose_inited = true;
+        //         camera_pose_last1 = camera_pose_current1;
+        //         camera_pose_last2 = camera_pose_current2;
+        //     }
+        //     else
+        //     {
+        //         float x_last1, y_last1, theta_last1, x_now1, y_now1, theta_now1;
+        //         float x_last2, y_last2, theta_last2, x_now2, y_now2, theta_now2;
+        //         float distance1, distance2, theta_dis1, theta_dis2;
 
-                // marker1_dummy to baselink_dummy
-                auto tf_marker_to_camera_last1 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_last1).inverse()
-                     * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                x_last1 = static_cast<tf2::Transform>(tf_marker_to_camera_last1).getOrigin()[0];
-                y_last1 = static_cast<tf2::Transform>(tf_marker_to_camera_last1).getOrigin()[1];
-                theta_last1 = tf2::getYaw(tf_marker_to_camera_last1.getRotation());
+        //         // marker1_dummy to baselink_dummy
+        //         auto tf_marker_to_camera_last1 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_last1).inverse()
+        //              * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
+        //         x_last1 = static_cast<tf2::Transform>(tf_marker_to_camera_last1).getOrigin()[0];
+        //         y_last1 = static_cast<tf2::Transform>(tf_marker_to_camera_last1).getOrigin()[1];
+        //         theta_last1 = tf2::getYaw(tf_marker_to_camera_last1.getRotation());
                 
-                auto tf_marker_to_camera_current1 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_current1).inverse()
-                    * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                x_now1 = static_cast<tf2::Transform>(tf_marker_to_camera_current1).getOrigin()[0];
-                y_now1 = static_cast<tf2::Transform>(tf_marker_to_camera_current1).getOrigin()[1];
-                theta_now1 = tf2::getYaw(tf_marker_to_camera_current1.getRotation());
-                distance1 = std::hypot(x_last1 - x_now1, y_last1 - y_now1);
-                theta_dis1 = std::abs(angles::shortest_angular_distance(theta_last1, theta_now1));
-                if (theta_dis1 > 0.2 || distance1 > 0.2)
-                {
-                    RCLCPP_INFO(get_logger(), "----------------------------------");
-                    RCLCPP_INFO(get_logger(), "x_last1     : %f, y_last1: %f, theta_last1: %f", x_last1, y_last1, theta_last1);
-                    RCLCPP_INFO(get_logger(), "x_now1      : %f, y_now1 : %f, theta_now1 : %f", x_now1, y_now1, theta_now1);
-                    RCLCPP_INFO(get_logger(), "distanc1    : %f", distance1);
-                    RCLCPP_INFO(get_logger(), "theta_dis1  : %f", theta_dis1);
-                    RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
-                    RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
-                    RCLCPP_INFO(get_logger(), "m1_m2 tf_c, x: %f, y: %f, theta_diff: %f", 
-                            tf_marker1_to_marker2_current.getOrigin()[0], tf_marker1_to_marker2_current.getOrigin()[1],
-                            tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
-                }
-                else
-                {
-                    RCLCPP_INFO(get_logger(), "----------------------------------");
+        //         auto tf_marker_to_camera_current1 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_current1).inverse()
+        //             * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
+        //         x_now1 = static_cast<tf2::Transform>(tf_marker_to_camera_current1).getOrigin()[0];
+        //         y_now1 = static_cast<tf2::Transform>(tf_marker_to_camera_current1).getOrigin()[1];
+        //         theta_now1 = tf2::getYaw(tf_marker_to_camera_current1.getRotation());
+        //         distance1 = std::hypot(x_last1 - x_now1, y_last1 - y_now1);
+        //         theta_dis1 = std::abs(angles::shortest_angular_distance(theta_last1, theta_now1));
+        //         if (theta_dis1 > 0.2 || distance1 > 0.2)
+        //         {
+        //             RCLCPP_INFO(get_logger(), "----------------------------------");
+        //             RCLCPP_INFO(get_logger(), "x_last1     : %f, y_last1: %f, theta_last1: %f", x_last1, y_last1, theta_last1);
+        //             RCLCPP_INFO(get_logger(), "x_now1      : %f, y_now1 : %f, theta_now1 : %f", x_now1, y_now1, theta_now1);
+        //             RCLCPP_INFO(get_logger(), "distanc1    : %f", distance1);
+        //             RCLCPP_INFO(get_logger(), "theta_dis1  : %f", theta_dis1);
+        //             RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
+        //             RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
+        //             RCLCPP_INFO(get_logger(), "m1_m2 tf_c, x: %f, y: %f, theta_diff: %f", 
+        //                     tf_marker1_to_marker2_current.getOrigin()[0], tf_marker1_to_marker2_current.getOrigin()[1],
+        //                     tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
+        //         }
+        //         else
+        //         {
+        //             RCLCPP_INFO(get_logger(), "----------------------------------");
 
-                    RCLCPP_INFO(get_logger(), "m1_m2 tf_c, x: %f, y: %f, theta_diff: %f", 
-                            tf_marker1_to_marker2_current.getOrigin()[0], tf_marker1_to_marker2_current.getOrigin()[1],
-                            tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
-                    // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
-                    // RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
-                    // RCLCPP_INFO(get_logger(), "marker1_to_marker2 tf_current, theta_same: %f", tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
-                    if (error_radius > 0.04)
-                    {
-                        RCLCPP_INFO(get_logger(), "==================================");
-                        RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
-                        float x_c, y_c, z_c, theta_c;
-                        x_c = tf_marker1_to_marker2_current.getOrigin()[0];
-                        y_c = tf_marker1_to_marker2_current.getOrigin()[1];
-                        z_c = tf_marker1_to_marker2_current.getOrigin()[2];
-                        theta_c = tf2::getYaw(tf_marker1_to_marker2_current.getRotation());
-                        RCLCPP_INFO(get_logger(), "x_c: %f, y_c: %f, z_c: %f, theta_c: %f", x_c, y_c, z_c, theta_c);
-                    }
-                    else
-                    {
-                        // RCLCPP_INFO(get_logger(), "**********************************");
-                        // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
-                    }
-                }
+        //             RCLCPP_INFO(get_logger(), "m1_m2 tf_c, x: %f, y: %f, theta_diff: %f", 
+        //                     tf_marker1_to_marker2_current.getOrigin()[0], tf_marker1_to_marker2_current.getOrigin()[1],
+        //                     tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
+        //             // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
+        //             // RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
+        //             // RCLCPP_INFO(get_logger(), "marker1_to_marker2 tf_current, theta_same: %f", tf2::getYaw(tf_marker1_to_marker2_current.getRotation()));
+        //             if (error_radius > 0.04)
+        //             {
+        //                 RCLCPP_INFO(get_logger(), "==================================");
+        //                 RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
+        //                 float x_c, y_c, z_c, theta_c;
+        //                 x_c = tf_marker1_to_marker2_current.getOrigin()[0];
+        //                 y_c = tf_marker1_to_marker2_current.getOrigin()[1];
+        //                 z_c = tf_marker1_to_marker2_current.getOrigin()[2];
+        //                 theta_c = tf2::getYaw(tf_marker1_to_marker2_current.getRotation());
+        //                 RCLCPP_INFO(get_logger(), "x_c: %f, y_c: %f, z_c: %f, theta_c: %f", x_c, y_c, z_c, theta_c);
+        //             }
+        //             else
+        //             {
+        //                 // RCLCPP_INFO(get_logger(), "**********************************");
+        //                 // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
+        //             }
+        //         }
 
-                // marker2_dummy to baselink_dummy
-                auto tf_marker_to_camera_last2 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_last2).inverse()
-                    * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                x_last2 = static_cast<tf2::Transform>(tf_marker_to_camera_last2).getOrigin()[0];
-                y_last2 = static_cast<tf2::Transform>(tf_marker_to_camera_last2).getOrigin()[1];
-                theta_last2 = tf2::getYaw(tf_marker_to_camera_last2.getRotation());
+        //         // marker2_dummy to baselink_dummy
+        //         auto tf_marker_to_camera_last2 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_last2).inverse()
+        //             * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
+        //         x_last2 = static_cast<tf2::Transform>(tf_marker_to_camera_last2).getOrigin()[0];
+        //         y_last2 = static_cast<tf2::Transform>(tf_marker_to_camera_last2).getOrigin()[1];
+        //         theta_last2 = tf2::getYaw(tf_marker_to_camera_last2.getRotation());
                 
-                auto tf_marker_to_camera_current2 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_current2).inverse()
-                    * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                x_now2 = static_cast<tf2::Transform>(tf_marker_to_camera_current2).getOrigin()[0];
-                y_now2 = static_cast<tf2::Transform>(tf_marker_to_camera_current2).getOrigin()[1];
-                theta_now2 = tf2::getYaw(tf_marker_to_camera_current2.getRotation());
-                distance2 = std::hypot(x_last2 - x_now2, y_last2 - y_now2);
-                theta_dis2 = std::abs(angles::shortest_angular_distance(theta_last2, theta_now2));
-                if (theta_dis2 > 0.3 || distance2 > 0.3)
-                {
-                    // RCLCPP_INFO(get_logger(), "-----------------------------------");
-                    // RCLCPP_INFO(get_logger(), "x_last2     : %f, y_last2: %f, theta_last2: %f", x_last2, y_last2, theta_last2);
-                    // RCLCPP_INFO(get_logger(), "x_now2      : %f, y_now2 : %f, theta_now2 : %f", x_now2, y_now2, theta_now2);
-                    // RCLCPP_INFO(get_logger(), "distanc2    : %f", distance2);
-                    // RCLCPP_INFO(get_logger(), "theta_dis2  : %f", theta_dis2);
-                    // RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
-                    // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
-                }
+        //         auto tf_marker_to_camera_current2 = tf_real_to_dummy.inverse() * static_cast<tf2::Transform>(camera_pose_current2).inverse()
+        //             * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
+        //         x_now2 = static_cast<tf2::Transform>(tf_marker_to_camera_current2).getOrigin()[0];
+        //         y_now2 = static_cast<tf2::Transform>(tf_marker_to_camera_current2).getOrigin()[1];
+        //         theta_now2 = tf2::getYaw(tf_marker_to_camera_current2.getRotation());
+        //         distance2 = std::hypot(x_last2 - x_now2, y_last2 - y_now2);
+        //         theta_dis2 = std::abs(angles::shortest_angular_distance(theta_last2, theta_now2));
+        //         if (theta_dis2 > 0.3 || distance2 > 0.3)
+        //         {
+        //             // RCLCPP_INFO(get_logger(), "-----------------------------------");
+        //             // RCLCPP_INFO(get_logger(), "x_last2     : %f, y_last2: %f, theta_last2: %f", x_last2, y_last2, theta_last2);
+        //             // RCLCPP_INFO(get_logger(), "x_now2      : %f, y_now2 : %f, theta_now2 : %f", x_now2, y_now2, theta_now2);
+        //             // RCLCPP_INFO(get_logger(), "distanc2    : %f", distance2);
+        //             // RCLCPP_INFO(get_logger(), "theta_dis2  : %f", theta_dis2);
+        //             // RCLCPP_INFO(get_logger(), "similarity  : %f", similarity);
+        //             // RCLCPP_INFO(get_logger(), "radius error: %f", error_radius);
+        //         }
 
-                camera_pose_last1 = camera_pose_current1;
-                camera_pose_last2 = camera_pose_current2;
+        //         camera_pose_last1 = camera_pose_current1;
+        //         camera_pose_last2 = camera_pose_current2;
 
-            }
-        }
+        //     }
+        // }
         
     }
 
