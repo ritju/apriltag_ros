@@ -667,6 +667,8 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             pose_with_id_msg.pose.header.stamp = msg_img->header.stamp;
             pose_with_id_msg.pose.header.frame_id = std::string("charger");
             pose_with_id_msg.marker_id = marker_id;
+            pose_with_id_msg.similarity = similarity;
+            pose_with_id_msg.radius = error_radius;
             auto tf_charger_to_baselink_dummy = tf_marker1_to_charger.inverse() * tf_real_to_dummy.inverse()
                 * tf_camera_to_marker1.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link ;
             tf2::toMsg(tf_charger_to_baselink_dummy, pose_with_id_msg.pose.pose);
