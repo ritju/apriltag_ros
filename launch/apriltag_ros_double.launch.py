@@ -71,6 +71,30 @@ def launch_setup(context, *args, **kwargs):
     except Exception as e:
         print(f'exception: {str(e)}')
         print("Please input MARKER_FRAME_RADIUS_THRESHOLD in docker-compose.yml")
+        
+    base_link_dummy_transform_x = -0.374
+    try :
+        if 'BASE_LINK_DUMMY_TRANSFORM_X' in os.environ:
+            base_link_dummy_transform_x = float(os.environ.get('BASE_LINK_DUMMY_TRANSFORM_X'))
+            print(f'Get base_link_dummy_transform_x {base_link_dummy_transform_x} from docker-compose.yml')
+        else:
+            base_link_dummy_transform_x = -0.374
+            print(f'Using default base_link_dummy_transform_x -0.374')
+    except Exception as e:
+        print(f'exception: {str(e)}')
+        print("Please input BASE_LINK_DUMMY_TRANSFORM_X in docker-compose.yml")
+    
+    base_link_dummy_transform_y = 0.0
+    try :
+        if 'BASE_LINK_DUMMY_TRANSFORM_Y' in os.environ:
+            base_link_dummy_transform_y = float(os.environ.get('BASE_LINK_DUMMY_TRANSFORM_Y'))
+            print(f'Get base_link_dummy_transform_y {base_link_dummy_transform_y} from docker-compose.yml')
+        else:
+            base_link_dummy_transform_y = 0.0
+            print(f'Using default base_link_dummy_transform_y 0.0')
+    except Exception as e:
+        print(f'exception: {str(e)}')
+        print("Please input BASE_LINK_DUMMY_TRANSFORM_Y in docker-compose.yml")
     
     
     apriltag_ros_extra_params = {
@@ -79,6 +103,8 @@ def launch_setup(context, *args, **kwargs):
         'marker_frame_translation': marker_frame_translation,
         'similarity_threshold': similarity_threshold,
         'radius_threshold': radius_threshold,
+        'base_link_dummy_transform_x': base_link_dummy_transform_x,
+        'base_link_dummy_transform_y': base_link_dummy_transform_y,
     }    
 
     # get pkg path

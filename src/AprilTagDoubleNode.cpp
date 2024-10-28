@@ -141,6 +141,7 @@ private:
     std::vector<std::pair<int, geometry_msgs::msg::TransformStamped>> id_and_tf_vec;
     float similarity_threshold;
     float radius_threshold;
+    float base_link_dummy_transform_x, base_link_dummy_transform_y;
     tf2::Stamped<tf2::Transform> camera_pose_last1;
     tf2::Stamped<tf2::Transform> camera_pose_last2;
     tf2::Stamped<tf2::Transform> camera_pose_current1;
@@ -205,12 +206,16 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     declare_parameter("marker_frame_translation", -0.04, descr("The translation distance on Y axis from charge frame to marker1 frame."));
     declare_parameter("similarity_threshold", 0.96, descr("similarity_threshold to check tf's validity"));
     declare_parameter("radius_threshold", 0.013, descr("radius_threshold to check tf's validity"));
+    declare_parameter("base_link_dummy_transform_x", -0.374, descr("base_link_dummy_transform_x"));
+    declare_parameter("base_link_dummy_transform_y", 0.0, descr("base_link_dummy_transform_y"));
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0:1/94:C9:60:43:BE:01"});
     // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
     this->get_parameter_or<float>("marker_frame_translation", marker_frame_translation, -0.04);
     this->get_parameter_or<float>("similarity_threshold", similarity_threshold, 0.96);
     this->get_parameter_or<float>("radius_threshold", radius_threshold, 0.014);
+    this->get_parameter_or<float>("base_link_dummy_transform_x", base_link_dummy_transform_x, -0.374);
+    this->get_parameter_or<float>("base_link_dummy_transform_y", base_link_dummy_transform_y, 0.0);
     RCLCPP_INFO(get_logger(), "similarity_threshold: %f", similarity_threshold);
     RCLCPP_INFO(get_logger(), "radius_threshold: %f", radius_threshold);
 
@@ -273,6 +278,7 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 
     // tf for base_link to dummy base_link
     tf_base_link_to_dummy_base_link.setIdentity();
+    tf_base_link_to_dummy_base_link.setOrigin(tf2::Vector3(base_link_dummy_transform_x, base_link_dummy_transform_y, 0.0));
     tf2::Quaternion q_base_link_to_dummy_base_link;
     q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
