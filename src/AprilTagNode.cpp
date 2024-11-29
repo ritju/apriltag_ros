@@ -238,7 +238,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
 
     pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
-    pose_with_id_baselink_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
+    pose_with_id_baselink_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id_base_link", 20);
     detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
     id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
     

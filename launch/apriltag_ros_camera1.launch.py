@@ -49,7 +49,7 @@ def launch_setup(context, *args, **kwargs):
     
     apriltag_ros_extra_params = {
         'marker_id_and_bluetooth_mac_vec': marker_id_and_bluetooth_mac_vec,
-        'size': size
+        'size': apriltag_single_size
     }    
 
     # get pkg path
