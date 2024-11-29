@@ -82,6 +82,7 @@ private:
     // parameter
     std::mutex mutex;
     double tag_edge_size;
+    double single_marker_size;
     std::atomic<int> max_hamming;
     std::atomic<bool> profile;
     std::unordered_map<int, std::string> tag_frames;
@@ -108,6 +109,7 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     rclcpp::Publisher<aruco_msgs::msg::PoseWithId>::SharedPtr pose_with_id_pub;
+    rclcpp::Publisher<aruco_msgs::msg::PoseWithId>::SharedPtr pose_with_id_baselink_pub;
     rclcpp::Publisher<aruco_msgs::msg::MarkerAndMacVector>::SharedPtr id_and_mac_pub;
     rclcpp::Publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>::SharedPtr detect_status;
     rclcpp::TimerBase::SharedPtr id_mac_timer_;
@@ -156,6 +158,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     // read-only parameters
     const std::string tag_family = declare_parameter("family", "36h11", descr("tag family", true));
     tag_edge_size = declare_parameter("size", 1.0, descr("default tag size", true));
+    single_marker_size = declare_parameter("signle_marker_size", 1.0, descr("default single marker size", true));
 
     // get tag names, IDs and sizes
     const auto ids = declare_parameter("tag.ids", std::vector<int64_t>{}, descr("tag ids", true));
@@ -234,7 +237,8 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
 
-    pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
+    pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
+    pose_with_id_baselink_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
     detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
     id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
     
@@ -466,7 +470,8 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         {
             tf2::fromMsg(transform_stamped, dummyToBaselink);
             tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) * tf_base_link_to_dummy_base_link, pose_with_id_msg.pose.pose);
-            pose_with_id_pub->publish(pose_with_id_msg);       
+            pose_with_id_pub->publish(pose_with_id_msg); 
+            pose_with_id_baselink_pub->publish(pose_with_id_msg);      
         }
     }
 
