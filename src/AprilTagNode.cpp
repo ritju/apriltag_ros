@@ -460,18 +460,22 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         tf2::Stamped<tf2::Transform> dummyToBaselink;
         dummyToBaselink.setIdentity();
 
-        aruco_msgs::msg::PoseWithId pose_with_id_msg;
+        aruco_msgs::msg::PoseWithId pose_with_id_msg, pose_with_id_baselink_msg;
         pose_with_id_msg.pose.header.stamp = msg_img->header.stamp;
         pose_with_id_msg.pose.header.frame_id = ss_child.str();
         pose_with_id_msg.marker_id = det->id;
+        pose_with_id_baselink_msg = pose_with_id_msg;
 
         geometry_msgs::msg::TransformStamped transform_stamped;
         if (getTransform(ss_child.str(), "base_link", transform_stamped))
         {
             tf2::fromMsg(transform_stamped, dummyToBaselink);
+
+            tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) , pose_with_id_baselink_msg.pose.pose);
+            pose_with_id_baselink_pub->publish(pose_with_id_baselink_msg); 
+ 
             tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) * tf_base_link_to_dummy_base_link, pose_with_id_msg.pose.pose);
-            pose_with_id_pub->publish(pose_with_id_msg); 
-            pose_with_id_baselink_pub->publish(pose_with_id_msg);      
+            pose_with_id_pub->publish(pose_with_id_msg);     
         }
     }
 
