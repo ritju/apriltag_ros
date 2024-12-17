@@ -22,6 +22,17 @@ def launch_setup(context, *args, **kwargs):
     except:
         print("Please input aruco marker_id and bluetooth_mac !")
     
+    marker_id_relocation = ['']
+    try:
+        if 'marker_id_relocation' in os.environ:
+            marker_id_relocation = os.environ.get('marker_id_relocation').split(',')
+            if marker_id_relocation == ['']:
+                raise
+        else:
+            marker_id_relocation = ['0', '1']
+    except:
+        print("Please input marker_id_relocation !")
+    
     size = 0.10
     try:
         if 'APRILTAG_SIZE' in os.environ:
@@ -49,7 +60,9 @@ def launch_setup(context, *args, **kwargs):
     
     apriltag_ros_extra_params = {
         'marker_id_and_bluetooth_mac_vec': marker_id_and_bluetooth_mac_vec,
-        'size': apriltag_single_size
+        'marker_id_relocation': marker_id_relocation,
+        'size': apriltag_single_size,
+        'relocation_only': True,
     }    
 
     # get pkg path
@@ -62,7 +75,7 @@ def launch_setup(context, *args, **kwargs):
     apriltag_ros_node = Node(
         executable='apriltag_node',
         package='apriltag_ros',
-        name='apriltag_node',
+        name='apriltag_node_camera1',
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],

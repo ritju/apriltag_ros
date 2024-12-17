@@ -121,6 +121,9 @@ private:
     bool id_selected = false;
     // float id_selected_lifecycle_;
     std::vector<std::string> marker_id_and_bluetooth_mac_vector;
+    std::vector<std::string> marker_id_relocation_str_vector;
+    std::vector<int> marker_id_relocation_vector;
+    bool relocation_only = false;
     rclcpp::Time charger_id_time_start;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr charger_id_sub;
     zarray_t detections;
@@ -180,9 +183,12 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     declare_parameter("profile", false, descr("print profiling information to stdout"));
 
     declare_parameter("marker_id_and_bluetooth_mac_vec", std::vector<std::string>(), descr("the vector of marker id and bluetooth mac"));
+    declare_parameter("marker_id_relocation", std::vector<std::string>(), descr("the vector of marker id for re-location"));
+    declare_parameter("relocation_only", false, descr("for relocation"));
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0/94:C9:60:43:BE:07"});
-    // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
+    this->get_parameter_or<std::vector<std::string>>("marker_id_relocation", marker_id_relocation_str_vector, {"0,1,2"});
+    this->get_parameter_or<bool>("relocation_only", relocation_only, false);
 
 	int id_mac_length = marker_id_and_bluetooth_mac_vector.size();
 	for (int ids_index = 0; ids_index < id_mac_length; ids_index++)
@@ -200,6 +206,13 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
 		msg.bluetooth_mac = bluetooth_mac;
 		msgs.marker_and_mac_vector.push_back(msg);
 	}
+
+    std::vector<int>().swap(marker_id_relocation_vector);
+    for (size_t i = 0; i < marker_id_relocation_str_vector.size(); i++)
+    {
+        marker_id_relocation_vector.push_back(atoi(marker_id_relocation_str_vector[i].c_str()));
+        RCLCPP_INFO(get_logger(), "mraker_id_relocation id: %d", marker_id_relocation_vector[i]);
+    }
 
     if(!frames.empty()) {
         if(ids.size() != frames.size()) {
@@ -237,15 +250,20 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
 
-    pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
-    pose_with_id_baselink_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id_base_link", 20);
-    detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
-    id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
-    
-    marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
-	id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
-	// id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_selected_callback, this));
-    charger_id_sub =  this->create_subscription<std_msgs::msg::String>("/charger/id",rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),std::bind(&AprilTagNode::charger_id_callback, this, std::placeholders::_1));
+    if (!relocation_only)
+    {
+        pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
+        detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
+        id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
+
+        id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
+        // id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_selected_callback, this));
+        charger_id_sub =  this->create_subscription<std_msgs::msg::String>("/charger/id",rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),std::bind(&AprilTagNode::charger_id_callback, this, std::placeholders::_1));
+    }
+    else
+    {
+        pose_with_id_baselink_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id_base_link", 20);
+    } 
 }
 
 AprilTagNode::~AprilTagNode()
@@ -469,13 +487,18 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         geometry_msgs::msg::TransformStamped transform_stamped;
         if (getTransform(ss_child.str(), "base_link", transform_stamped))
         {
-            tf2::fromMsg(transform_stamped, dummyToBaselink);
-
-            tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) , pose_with_id_baselink_msg.pose.pose);
-            pose_with_id_baselink_pub->publish(pose_with_id_baselink_msg); 
+            tf2::fromMsg(transform_stamped, dummyToBaselink);            
  
-            tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) * tf_base_link_to_dummy_base_link, pose_with_id_msg.pose.pose);
-            pose_with_id_pub->publish(pose_with_id_msg);     
+            if (relocation_only)
+            {
+                tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) , pose_with_id_baselink_msg.pose.pose);
+                pose_with_id_baselink_pub->publish(pose_with_id_baselink_msg); 
+            }
+            else
+            {
+                tf2::toMsg(static_cast<tf2::Transform>(dummyToBaselink) * tf_base_link_to_dummy_base_link, pose_with_id_msg.pose.pose);
+                pose_with_id_pub->publish(pose_with_id_msg);
+            }
         }
     }
 
