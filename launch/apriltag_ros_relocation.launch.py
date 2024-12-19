@@ -21,17 +21,6 @@ def launch_setup(context, *args, **kwargs):
             marker_id_and_bluetooth_mac_vec = ['0/94:C9:60:43:BE:01', '1/94:C9:60:43:BE:06']
     except:
         print("Please input aruco marker_id and bluetooth_mac !")
-
-    marker_id_relocation = ['']
-    try:
-        if 'marker_id_relocation' in os.environ:
-            marker_id_relocation = os.environ.get('marker_id_relocation').split(',')
-            if marker_id_relocation == ['']:
-                raise
-        else:
-            marker_id_relocation = ['0', '1']
-    except:
-        print("Please input marker_id_relocation !")
     
     size = 0.10
     try:
@@ -44,25 +33,11 @@ def launch_setup(context, *args, **kwargs):
     except Exception as e:
         print(f'exception: {str(e)}')
         print("Please input APRILTAG_SIZE in docker-compose.yaml")
-
-    apriltag_single_size = 0.10
-    try:
-        if 'APRILTAG_SINGLE_SIZE' in os.environ:
-            apriltag_single_size = float(os.environ.get('APRILTAG_SINGLE_SIZE'))
-            print(f'get APRILTAG_SINGLE_SIZE {apriltag_single_size} from docker-compose.yaml file')
-        else:
-            apriltag_single_size = 0.10
-            print("Using default APRILTAG_SINGLE_SIZE 0.10.")
-    except Exception as e:
-        print(f'exception: {str(e)}')
-        print("Please input APRILTAG_SINGLE_SIZE in docker-compose.yaml")
     
     
     apriltag_ros_extra_params = {
         'marker_id_and_bluetooth_mac_vec': marker_id_and_bluetooth_mac_vec,
-        'marker_id_relocation': marker_id_relocation,
-        'size': apriltag_single_size,
-        'relocation_only': True,
+        'size': size
     }    
 
     # get pkg path
@@ -73,14 +48,16 @@ def launch_setup(context, *args, **kwargs):
 
     # apriltag_ros node
     apriltag_ros_node = Node(
-        executable='apriltag_node',
+        executable='apriltag_relocation_node',
         package='apriltag_ros',
-        name='apriltag_node_camera3',
+        name='apriltag_relocation_node',
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
-        remappings=[('/image_rect', '/camera3/color/image_raw'),
-                    ('/camera_info', '/camera3/color/camera_info')]
+        remappings=[('/image_rect1', '/camera3/color/image_raw'),
+                    ('/image_rect2', '/camera1/color/image_raw'),
+                    # ('/camera_info', '/camera3/color/camera_info'),
+                    ]
     )
 
     return [apriltag_ros_node]

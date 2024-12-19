@@ -117,7 +117,7 @@ def launch_setup(context, *args, **kwargs):
     apriltag_ros_node = Node(
         executable='apriltag_double_node',
         package='apriltag_ros',
-        name='apriltag_double_node',
+        name='apriltag_charge_double_node',
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],

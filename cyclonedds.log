@@ -1,137 +1,137 @@
-1734522422.500893 [0] apriltag_n: config: Domain/General/MulticastRecvNetworkInterfaceAddresses/#text: preferred {}
-1734522422.500907 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@autodetermine]: false {}
-1734522422.500910 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@name]: docker0 {1}
-1734522422.500913 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@address]:  {}
-1734522422.500915 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@priority]: default {1}
-1734522422.500917 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@prefer_multicast]: false {}
-1734522422.500919 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@presence_required]: true {}
-1734522422.500921 [0] apriltag_n: config: Domain/General/Interfaces/NetworkInterface[@multicast]: default {1}
-1734522422.500923 [0] apriltag_n: config: Domain/General/ExternalNetworkAddress/#text: auto {}
-1734522422.500925 [0] apriltag_n: config: Domain/General/ExternalNetworkMask/#text: 0.0.0.0 {}
-1734522422.500927 [0] apriltag_n: config: Domain/General/AllowMulticast/#text: default {1}
-1734522422.500929 [0] apriltag_n: config: Domain/General/MulticastTimeToLive/#text: 32 {}
-1734522422.500931 [0] apriltag_n: config: Domain/General/DontRoute/#text: false {}
-1734522422.500933 [0] apriltag_n: config: Domain/General/Transport/#text: udp {}
-1734522422.500935 [0] apriltag_n: config: Domain/General/EnableMulticastLoopback/#text: true {}
-1734522422.500937 [0] apriltag_n: config: Domain/General/MaxMessageSize/#text: 65500 B {1}
-1734522422.500939 [0] apriltag_n: config: Domain/General/MaxRexmitMessageSize/#text: 1456 B {}
-1734522422.500941 [0] apriltag_n: config: Domain/General/FragmentSize/#text: 1344 B {}
-1734522422.500943 [0] apriltag_n: config: Domain/General/RedundantNetworking/#text: false {}
-1734522422.500945 [0] apriltag_n: config: Domain/General/EntityAutoNaming/#text: empty {}
-1734522422.500948 [0] apriltag_n: config: Domain/General/EntityAutoNaming[@seed]: 141959985 322486605 1236778390 1618379665 624113100 1564173395 3396222450 3993815003 {}
-1734522422.500951 [0] apriltag_n: config: Domain/Sizing/ReceiveBufferSize/#text: 1 MiB {}
-1734522422.500953 [0] apriltag_n: config: Domain/Sizing/ReceiveBufferChunkSize/#text: 128 KiB {}
-1734522422.500955 [0] apriltag_n: config: Domain/Compatibility/StandardsConformance/#text: lax {}
-1734522422.500957 [0] apriltag_n: config: Domain/Compatibility/ExplicitlyPublishQosSetToDefault/#text: false {}
-1734522422.500960 [0] apriltag_n: config: Domain/Compatibility/ManySocketsMode/#text: single {}
-1734522422.500961 [0] apriltag_n: config: Domain/Compatibility/AssumeRtiHasPmdEndpoints/#text: false {}
-1734522422.500964 [0] apriltag_n: config: Domain/Discovery/Tag/#text:  {}
-1734522422.500965 [0] apriltag_n: config: Domain/Discovery/ExternalDomainId/#text: 0 {}
-1734522422.500967 [0] apriltag_n: config: Domain/Discovery/DSGracePeriod/#text: 30 s {}
-1734522422.500970 [0] apriltag_n: config: Domain/Discovery/ParticipantIndex/#text: none {}
-1734522422.500971 [0] apriltag_n: config: Domain/Discovery/MaxAutoParticipantIndex/#text: 9 {}
-1734522422.500973 [0] apriltag_n: config: Domain/Discovery/SPDPMulticastAddress/#text: 239.255.0.1 {}
-1734522422.500975 [0] apriltag_n: config: Domain/Discovery/SPDPInterval/#text: 30 s {}
-1734522422.500977 [0] apriltag_n: config: Domain/Discovery/DefaultMulticastAddress/#text: auto {}
-1734522422.500979 [0] apriltag_n: config: Domain/Discovery/Ports/Base/#text: 7400 {}
-1734522422.500982 [0] apriltag_n: config: Domain/Discovery/Ports/DomainGain/#text: 250 {}
-1734522422.500984 [0] apriltag_n: config: Domain/Discovery/Ports/ParticipantGain/#text: 2 {}
-1734522422.500986 [0] apriltag_n: config: Domain/Discovery/Ports/MulticastMetaOffset/#text: 0 {}
-1734522422.500988 [0] apriltag_n: config: Domain/Discovery/Ports/UnicastMetaOffset/#text: 10 {}
-1734522422.500990 [0] apriltag_n: config: Domain/Discovery/Ports/MulticastDataOffset/#text: 1 {}
-1734522422.500992 [0] apriltag_n: config: Domain/Discovery/Ports/UnicastDataOffset/#text: 11 {}
-1734522422.500997 [0] apriltag_n: config: Domain/Discovery/EnableTopicDiscoveryEndpoints/#text: false {}
-1734522422.500999 [0] apriltag_n: config: Domain/Discovery/LeaseDuration/#text: 10 s {}
-1734522422.501005 [0] apriltag_n: config: Domain/Tracing/Category/#text: fatal,error,warning,info,config {1}
-1734522422.501007 [0] apriltag_n: config: Domain/Tracing/OutputFile/#text: cyclonedds.log {}
-1734522422.501009 [0] apriltag_n: config: Domain/Tracing/AppendToFile/#text: false {}
-1734522422.501011 [0] apriltag_n: config: Domain/Tracing/PacketCaptureFile/#text:  {}
-1734522422.501013 [0] apriltag_n: config: Domain/Internal/DeliveryQueueMaxSamples/#text: 256 {}
-1734522422.501015 [0] apriltag_n: config: Domain/Internal/PrimaryReorderMaxSamples/#text: 128 {}
-1734522422.501017 [0] apriltag_n: config: Domain/Internal/SecondaryReorderMaxSamples/#text: 128 {}
-1734522422.501019 [0] apriltag_n: config: Domain/Internal/DefragUnreliableMaxSamples/#text: 4 {}
-1734522422.501021 [0] apriltag_n: config: Domain/Internal/DefragReliableMaxSamples/#text: 16 {}
-1734522422.501022 [0] apriltag_n: config: Domain/Internal/BuiltinEndpointSet/#text: writers {}
-1734522422.501024 [0] apriltag_n: config: Domain/Internal/MeasureHbToAckLatency/#text: false {}
-1734522422.501026 [0] apriltag_n: config: Domain/Internal/UnicastResponseToSPDPMessages/#text: true {}
-1734522422.501028 [0] apriltag_n: config: Domain/Internal/SynchronousDeliveryPriorityThreshold/#text: 0 {}
-1734522422.501030 [0] apriltag_n: config: Domain/Internal/SynchronousDeliveryLatencyBound/#text: inf {}
-1734522422.501032 [0] apriltag_n: config: Domain/Internal/MaxParticipants/#text: 0 {}
-1734522422.501034 [0] apriltag_n: config: Domain/Internal/AccelerateRexmitBlockSize/#text: 0 {}
-1734522422.501036 [0] apriltag_n: config: Domain/Internal/RetransmitMerging/#text: never {}
-1734522422.501038 [0] apriltag_n: config: Domain/Internal/RetransmitMergingPeriod/#text: 5 ms {}
-1734522422.501040 [0] apriltag_n: config: Domain/Internal/HeartbeatInterval/#text: 100 ms {}
-1734522422.501042 [0] apriltag_n: config: Domain/Internal/HeartbeatInterval[@min]: 5 ms {}
-1734522422.501044 [0] apriltag_n: config: Domain/Internal/HeartbeatInterval[@minsched]: 20 ms {}
-1734522422.501046 [0] apriltag_n: config: Domain/Internal/HeartbeatInterval[@max]: 8 s {}
-1734522422.501048 [0] apriltag_n: config: Domain/Internal/MaxQueuedRexmitBytes/#text: 512 KiB {}
-1734522422.501050 [0] apriltag_n: config: Domain/Internal/MaxQueuedRexmitMessages/#text: 200 {}
-1734522422.501052 [0] apriltag_n: config: Domain/Internal/WriterLingerDuration/#text: 1 s {}
-1734522422.501054 [0] apriltag_n: config: Domain/Internal/SocketReceiveBufferSize[@min]: 16 MiB {1}
-1734522422.501056 [0] apriltag_n: config: Domain/Internal/SocketReceiveBufferSize[@max]: default {}
-1734522422.501058 [0] apriltag_n: config: Domain/Internal/SocketSendBufferSize[@min]: 64 KiB {}
-1734522422.501060 [0] apriltag_n: config: Domain/Internal/SocketSendBufferSize[@max]: default {}
-1734522422.501062 [0] apriltag_n: config: Domain/Internal/NackDelay/#text: 100 ms {}
-1734522422.501064 [0] apriltag_n: config: Domain/Internal/AckDelay/#text: 10 ms {}
-1734522422.501066 [0] apriltag_n: config: Domain/Internal/AutoReschedNackDelay/#text: 3 s {}
-1734522422.501068 [0] apriltag_n: config: Domain/Internal/PreEmptiveAckDelay/#text: 10 ms {}
-1734522422.501070 [0] apriltag_n: config: Domain/Internal/ScheduleTimeRounding/#text: 0 s {}
-1734522422.501073 [0] apriltag_n: config: Domain/Internal/DDSI2DirectMaxThreads/#text: 1 {}
-1734522422.501076 [0] apriltag_n: config: Domain/Internal/SquashParticipants/#text: false {}
-1734522422.501078 [0] apriltag_n: config: Domain/Internal/SPDPResponseMaxDelay/#text: 0 s {}
-1734522422.501081 [0] apriltag_n: config: Domain/Internal/LateAckMode/#text: false {}
-1734522422.501083 [0] apriltag_n: config: Domain/Internal/RetryOnRejectBestEffort/#text: false {}
-1734522422.501085 [0] apriltag_n: config: Domain/Internal/GenerateKeyhash/#text: false {}
-1734522422.501087 [0] apriltag_n: config: Domain/Internal/MaxSampleSize/#text: 2147483647 B {}
-1734522422.501089 [0] apriltag_n: config: Domain/Internal/LivelinessMonitoring/#text: false {}
-1734522422.501093 [0] apriltag_n: config: Domain/Internal/LivelinessMonitoring[@StackTraces]: true {}
-1734522422.501095 [0] apriltag_n: config: Domain/Internal/LivelinessMonitoring[@Interval]: 1 s {}
-1734522422.501097 [0] apriltag_n: config: Domain/Internal/MonitorPort/#text: -1 {}
-1734522422.501098 [0] apriltag_n: config: Domain/Internal/PrioritizeRetransmit/#text: true {}
-1734522422.501100 [0] apriltag_n: config: Domain/Internal/UseMulticastIfMreqn/#text: 0 {}
-1734522422.501102 [0] apriltag_n: config: Domain/Internal/RediscoveryBlacklistDuration/#text: 0 s {}
-1734522422.501104 [0] apriltag_n: config: Domain/Internal/RediscoveryBlacklistDuration[@enforce]: false {}
-1734522422.501106 [0] apriltag_n: config: Domain/Internal/MultipleReceiveThreads/#text: default {}
-1734522422.501108 [0] apriltag_n: config: Domain/Internal/MultipleReceiveThreads[@maxretries]: 4294967295 {}
-1734522422.501111 [0] apriltag_n: config: Domain/Internal/Test/XmitLossiness/#text: 0 {}
-1734522422.501113 [0] apriltag_n: config: Domain/Internal/Watermarks/WhcLow/#text: 1 KiB {}
-1734522422.501115 [0] apriltag_n: config: Domain/Internal/Watermarks/WhcHigh/#text: 500 KiB {1}
-1734522422.501117 [0] apriltag_n: config: Domain/Internal/Watermarks/WhcHighInit/#text: 30 KiB {}
-1734522422.501119 [0] apriltag_n: config: Domain/Internal/Watermarks/WhcAdaptive/#text: true {}
-1734522422.501122 [0] apriltag_n: config: Domain/Internal/BurstSize/MaxRexmit/#text: 1 MiB {}
-1734522422.501124 [0] apriltag_n: config: Domain/Internal/BurstSize/MaxInitTransmit/#text: 4294967295 {}
-1734522422.501126 [0] apriltag_n: config: Domain/Internal/EnableExpensiveChecks/#text:  {}
-1734522422.501128 [0] apriltag_n: config: Domain/TCP/NoDelay/#text: true {}
-1734522422.501138 [0] apriltag_n: config: Domain/TCP/Port/#text: -1 {}
-1734522422.501149 [0] apriltag_n: config: Domain/TCP/ReadTimeout/#text: 2 s {}
-1734522422.501152 [0] apriltag_n: config: Domain/TCP/WriteTimeout/#text: 2 s {}
-1734522422.501154 [0] apriltag_n: config: Domain/TCP/AlwaysUsePeeraddrForUnicast/#text: false {}
-1734522422.501156 [0] apriltag_n: config: Domain/SSL/Enable/#text: false {}
-1734522422.501158 [0] apriltag_n: config: Domain/SSL/CertificateVerification/#text: true {}
-1734522422.501160 [0] apriltag_n: config: Domain/SSL/VerifyClient/#text: true {}
-1734522422.501162 [0] apriltag_n: config: Domain/SSL/SelfSignedCertificates/#text: false {}
-1734522422.501164 [0] apriltag_n: config: Domain/SSL/KeystoreFile/#text: keystore {}
-1734522422.501166 [0] apriltag_n: config: Domain/SSL/KeyPassphrase/#text: secret {}
-1734522422.501167 [0] apriltag_n: config: Domain/SSL/Ciphers/#text: ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH {}
-1734522422.501169 [0] apriltag_n: config: Domain/SSL/EntropyFile/#text:  {}
-1734522422.501171 [0] apriltag_n: config: Domain/SSL/MinimumTLSVersion/#text: 1.3 {}
-1734522422.501174 [0] apriltag_n: config: Domain/SharedMemory/Enable/#text: false {}
-1734522422.501176 [0] apriltag_n: config: Domain/SharedMemory/Locator/#text:  {}
-1734522422.501178 [0] apriltag_n: config: Domain/SharedMemory/Prefix/#text: DDS_CYCLONE {}
-1734522422.501180 [0] apriltag_n: config: Domain/SharedMemory/LogLevel/#text: info {}
-1734522422.501182 [0] apriltag_n: config: Domain[@Id]: 0 {1}
-1734522422.501221 [0] apriltag_n: started at 1734522422.06501187 -- 2024-12-18 11:47:02+00:00
-1734522422.501224 [0] apriltag_n: udp initialized
-1734522422.501457 [0] apriltag_n: interfaces: lo udp/127.0.0.1(q1) eno1 udp/192.168.0.11(q9) wlp2s0 wireless udp/192.168.1.108(q9) docker0 udp/172.17.0.1(q9) br-7c9fdd76331e udp/172.18.0.1(q9)
-1734522422.501462 [0] apriltag_n: selected interfaces: docker0 (index 4 priority 0)
-1734522422.501464 [0] apriltag_n: presumed robust multicast support, use for everything
-1734522422.501475 [0] apriltag_n: ownip: udp/172.17.0.1
-1734522422.501476 [0] apriltag_n: extmask: invalid/0 (not applicable)
-1734522422.501478 [0] apriltag_n: SPDP MC: udp/239.255.0.1
-1734522422.501479 [0] apriltag_n: default MC: udp/239.255.0.1
-1734522422.501480 [0] apriltag_n: SSM support included
-1734522422.501575 [0] apriltag_n: rtps_init: uc ports: disc 0 data 0
-1734522422.501577 [0] apriltag_n: rtps_init: domainid 0 participantid -2
-1734522422.501579 [0] apriltag_n: Unicast Ports: discovery 60133 data 60133
-1734522422.501595 [0] apriltag_n: Multicast Ports: discovery 7400 data 7401 
-1734522422.501601 [0] apriltag_n: interface docker0: transmit port 49041
+1734574389.115309 [0] apriltag_r: config: Domain/General/MulticastRecvNetworkInterfaceAddresses/#text: preferred {}
+1734574389.115326 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@autodetermine]: false {}
+1734574389.115330 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@name]: docker0 {1}
+1734574389.115338 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@address]:  {}
+1734574389.115343 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@priority]: default {1}
+1734574389.115346 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@prefer_multicast]: false {}
+1734574389.115349 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@presence_required]: true {}
+1734574389.115352 [0] apriltag_r: config: Domain/General/Interfaces/NetworkInterface[@multicast]: default {1}
+1734574389.115355 [0] apriltag_r: config: Domain/General/ExternalNetworkAddress/#text: auto {}
+1734574389.115357 [0] apriltag_r: config: Domain/General/ExternalNetworkMask/#text: 0.0.0.0 {}
+1734574389.115359 [0] apriltag_r: config: Domain/General/AllowMulticast/#text: default {1}
+1734574389.115361 [0] apriltag_r: config: Domain/General/MulticastTimeToLive/#text: 32 {}
+1734574389.115363 [0] apriltag_r: config: Domain/General/DontRoute/#text: false {}
+1734574389.115365 [0] apriltag_r: config: Domain/General/Transport/#text: udp {}
+1734574389.115367 [0] apriltag_r: config: Domain/General/EnableMulticastLoopback/#text: true {}
+1734574389.115369 [0] apriltag_r: config: Domain/General/MaxMessageSize/#text: 65500 B {1}
+1734574389.115371 [0] apriltag_r: config: Domain/General/MaxRexmitMessageSize/#text: 1456 B {}
+1734574389.115373 [0] apriltag_r: config: Domain/General/FragmentSize/#text: 1344 B {}
+1734574389.115375 [0] apriltag_r: config: Domain/General/RedundantNetworking/#text: false {}
+1734574389.115377 [0] apriltag_r: config: Domain/General/EntityAutoNaming/#text: empty {}
+1734574389.115379 [0] apriltag_r: config: Domain/General/EntityAutoNaming[@seed]: 1589352816 3019796638 1110791030 4048156097 913200070 2185632811 952802770 784835765 {}
+1734574389.115383 [0] apriltag_r: config: Domain/Sizing/ReceiveBufferSize/#text: 1 MiB {}
+1734574389.115385 [0] apriltag_r: config: Domain/Sizing/ReceiveBufferChunkSize/#text: 128 KiB {}
+1734574389.115387 [0] apriltag_r: config: Domain/Compatibility/StandardsConformance/#text: lax {}
+1734574389.115389 [0] apriltag_r: config: Domain/Compatibility/ExplicitlyPublishQosSetToDefault/#text: false {}
+1734574389.115391 [0] apriltag_r: config: Domain/Compatibility/ManySocketsMode/#text: single {}
+1734574389.115392 [0] apriltag_r: config: Domain/Compatibility/AssumeRtiHasPmdEndpoints/#text: false {}
+1734574389.115394 [0] apriltag_r: config: Domain/Discovery/Tag/#text:  {}
+1734574389.115396 [0] apriltag_r: config: Domain/Discovery/ExternalDomainId/#text: 0 {}
+1734574389.115398 [0] apriltag_r: config: Domain/Discovery/DSGracePeriod/#text: 30 s {}
+1734574389.115400 [0] apriltag_r: config: Domain/Discovery/ParticipantIndex/#text: none {}
+1734574389.115402 [0] apriltag_r: config: Domain/Discovery/MaxAutoParticipantIndex/#text: 9 {}
+1734574389.115404 [0] apriltag_r: config: Domain/Discovery/SPDPMulticastAddress/#text: 239.255.0.1 {}
+1734574389.115406 [0] apriltag_r: config: Domain/Discovery/SPDPInterval/#text: 30 s {}
+1734574389.115408 [0] apriltag_r: config: Domain/Discovery/DefaultMulticastAddress/#text: auto {}
+1734574389.115410 [0] apriltag_r: config: Domain/Discovery/Ports/Base/#text: 7400 {}
+1734574389.115412 [0] apriltag_r: config: Domain/Discovery/Ports/DomainGain/#text: 250 {}
+1734574389.115414 [0] apriltag_r: config: Domain/Discovery/Ports/ParticipantGain/#text: 2 {}
+1734574389.115417 [0] apriltag_r: config: Domain/Discovery/Ports/MulticastMetaOffset/#text: 0 {}
+1734574389.115419 [0] apriltag_r: config: Domain/Discovery/Ports/UnicastMetaOffset/#text: 10 {}
+1734574389.115420 [0] apriltag_r: config: Domain/Discovery/Ports/MulticastDataOffset/#text: 1 {}
+1734574389.115422 [0] apriltag_r: config: Domain/Discovery/Ports/UnicastDataOffset/#text: 11 {}
+1734574389.115427 [0] apriltag_r: config: Domain/Discovery/EnableTopicDiscoveryEndpoints/#text: false {}
+1734574389.115429 [0] apriltag_r: config: Domain/Discovery/LeaseDuration/#text: 10 s {}
+1734574389.115435 [0] apriltag_r: config: Domain/Tracing/Category/#text: fatal,error,warning,info,config {1}
+1734574389.115437 [0] apriltag_r: config: Domain/Tracing/OutputFile/#text: cyclonedds.log {}
+1734574389.115439 [0] apriltag_r: config: Domain/Tracing/AppendToFile/#text: false {}
+1734574389.115441 [0] apriltag_r: config: Domain/Tracing/PacketCaptureFile/#text:  {}
+1734574389.115443 [0] apriltag_r: config: Domain/Internal/DeliveryQueueMaxSamples/#text: 256 {}
+1734574389.115445 [0] apriltag_r: config: Domain/Internal/PrimaryReorderMaxSamples/#text: 128 {}
+1734574389.115447 [0] apriltag_r: config: Domain/Internal/SecondaryReorderMaxSamples/#text: 128 {}
+1734574389.115449 [0] apriltag_r: config: Domain/Internal/DefragUnreliableMaxSamples/#text: 4 {}
+1734574389.115450 [0] apriltag_r: config: Domain/Internal/DefragReliableMaxSamples/#text: 16 {}
+1734574389.115452 [0] apriltag_r: config: Domain/Internal/BuiltinEndpointSet/#text: writers {}
+1734574389.115454 [0] apriltag_r: config: Domain/Internal/MeasureHbToAckLatency/#text: false {}
+1734574389.115456 [0] apriltag_r: config: Domain/Internal/UnicastResponseToSPDPMessages/#text: true {}
+1734574389.115458 [0] apriltag_r: config: Domain/Internal/SynchronousDeliveryPriorityThreshold/#text: 0 {}
+1734574389.115460 [0] apriltag_r: config: Domain/Internal/SynchronousDeliveryLatencyBound/#text: inf {}
+1734574389.115462 [0] apriltag_r: config: Domain/Internal/MaxParticipants/#text: 0 {}
+1734574389.115463 [0] apriltag_r: config: Domain/Internal/AccelerateRexmitBlockSize/#text: 0 {}
+1734574389.115465 [0] apriltag_r: config: Domain/Internal/RetransmitMerging/#text: never {}
+1734574389.115467 [0] apriltag_r: config: Domain/Internal/RetransmitMergingPeriod/#text: 5 ms {}
+1734574389.115469 [0] apriltag_r: config: Domain/Internal/HeartbeatInterval/#text: 100 ms {}
+1734574389.115471 [0] apriltag_r: config: Domain/Internal/HeartbeatInterval[@min]: 5 ms {}
+1734574389.115473 [0] apriltag_r: config: Domain/Internal/HeartbeatInterval[@minsched]: 20 ms {}
+1734574389.115475 [0] apriltag_r: config: Domain/Internal/HeartbeatInterval[@max]: 8 s {}
+1734574389.115477 [0] apriltag_r: config: Domain/Internal/MaxQueuedRexmitBytes/#text: 512 KiB {}
+1734574389.115479 [0] apriltag_r: config: Domain/Internal/MaxQueuedRexmitMessages/#text: 200 {}
+1734574389.115481 [0] apriltag_r: config: Domain/Internal/WriterLingerDuration/#text: 1 s {}
+1734574389.115483 [0] apriltag_r: config: Domain/Internal/SocketReceiveBufferSize[@min]: 16 MiB {1}
+1734574389.115485 [0] apriltag_r: config: Domain/Internal/SocketReceiveBufferSize[@max]: default {}
+1734574389.115487 [0] apriltag_r: config: Domain/Internal/SocketSendBufferSize[@min]: 64 KiB {}
+1734574389.115489 [0] apriltag_r: config: Domain/Internal/SocketSendBufferSize[@max]: default {}
+1734574389.115491 [0] apriltag_r: config: Domain/Internal/NackDelay/#text: 100 ms {}
+1734574389.115493 [0] apriltag_r: config: Domain/Internal/AckDelay/#text: 10 ms {}
+1734574389.115495 [0] apriltag_r: config: Domain/Internal/AutoReschedNackDelay/#text: 3 s {}
+1734574389.115497 [0] apriltag_r: config: Domain/Internal/PreEmptiveAckDelay/#text: 10 ms {}
+1734574389.115499 [0] apriltag_r: config: Domain/Internal/ScheduleTimeRounding/#text: 0 s {}
+1734574389.115501 [0] apriltag_r: config: Domain/Internal/DDSI2DirectMaxThreads/#text: 1 {}
+1734574389.115503 [0] apriltag_r: config: Domain/Internal/SquashParticipants/#text: false {}
+1734574389.115504 [0] apriltag_r: config: Domain/Internal/SPDPResponseMaxDelay/#text: 0 s {}
+1734574389.115506 [0] apriltag_r: config: Domain/Internal/LateAckMode/#text: false {}
+1734574389.115508 [0] apriltag_r: config: Domain/Internal/RetryOnRejectBestEffort/#text: false {}
+1734574389.115510 [0] apriltag_r: config: Domain/Internal/GenerateKeyhash/#text: false {}
+1734574389.115512 [0] apriltag_r: config: Domain/Internal/MaxSampleSize/#text: 2147483647 B {}
+1734574389.115514 [0] apriltag_r: config: Domain/Internal/LivelinessMonitoring/#text: false {}
+1734574389.115517 [0] apriltag_r: config: Domain/Internal/LivelinessMonitoring[@StackTraces]: true {}
+1734574389.115519 [0] apriltag_r: config: Domain/Internal/LivelinessMonitoring[@Interval]: 1 s {}
+1734574389.115521 [0] apriltag_r: config: Domain/Internal/MonitorPort/#text: -1 {}
+1734574389.115524 [0] apriltag_r: config: Domain/Internal/PrioritizeRetransmit/#text: true {}
+1734574389.115525 [0] apriltag_r: config: Domain/Internal/UseMulticastIfMreqn/#text: 0 {}
+1734574389.115527 [0] apriltag_r: config: Domain/Internal/RediscoveryBlacklistDuration/#text: 0 s {}
+1734574389.115529 [0] apriltag_r: config: Domain/Internal/RediscoveryBlacklistDuration[@enforce]: false {}
+1734574389.115531 [0] apriltag_r: config: Domain/Internal/MultipleReceiveThreads/#text: default {}
+1734574389.115533 [0] apriltag_r: config: Domain/Internal/MultipleReceiveThreads[@maxretries]: 4294967295 {}
+1734574389.115535 [0] apriltag_r: config: Domain/Internal/Test/XmitLossiness/#text: 0 {}
+1734574389.115538 [0] apriltag_r: config: Domain/Internal/Watermarks/WhcLow/#text: 1 KiB {}
+1734574389.115540 [0] apriltag_r: config: Domain/Internal/Watermarks/WhcHigh/#text: 500 KiB {1}
+1734574389.115542 [0] apriltag_r: config: Domain/Internal/Watermarks/WhcHighInit/#text: 30 KiB {}
+1734574389.115544 [0] apriltag_r: config: Domain/Internal/Watermarks/WhcAdaptive/#text: true {}
+1734574389.115546 [0] apriltag_r: config: Domain/Internal/BurstSize/MaxRexmit/#text: 1 MiB {}
+1734574389.115548 [0] apriltag_r: config: Domain/Internal/BurstSize/MaxInitTransmit/#text: 4294967295 {}
+1734574389.115550 [0] apriltag_r: config: Domain/Internal/EnableExpensiveChecks/#text:  {}
+1734574389.115552 [0] apriltag_r: config: Domain/TCP/NoDelay/#text: true {}
+1734574389.115554 [0] apriltag_r: config: Domain/TCP/Port/#text: -1 {}
+1734574389.115556 [0] apriltag_r: config: Domain/TCP/ReadTimeout/#text: 2 s {}
+1734574389.115558 [0] apriltag_r: config: Domain/TCP/WriteTimeout/#text: 2 s {}
+1734574389.115560 [0] apriltag_r: config: Domain/TCP/AlwaysUsePeeraddrForUnicast/#text: false {}
+1734574389.115562 [0] apriltag_r: config: Domain/SSL/Enable/#text: false {}
+1734574389.115564 [0] apriltag_r: config: Domain/SSL/CertificateVerification/#text: true {}
+1734574389.115566 [0] apriltag_r: config: Domain/SSL/VerifyClient/#text: true {}
+1734574389.115568 [0] apriltag_r: config: Domain/SSL/SelfSignedCertificates/#text: false {}
+1734574389.115570 [0] apriltag_r: config: Domain/SSL/KeystoreFile/#text: keystore {}
+1734574389.115572 [0] apriltag_r: config: Domain/SSL/KeyPassphrase/#text: secret {}
+1734574389.115574 [0] apriltag_r: config: Domain/SSL/Ciphers/#text: ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH {}
+1734574389.115576 [0] apriltag_r: config: Domain/SSL/EntropyFile/#text:  {}
+1734574389.115579 [0] apriltag_r: config: Domain/SSL/MinimumTLSVersion/#text: 1.3 {}
+1734574389.115581 [0] apriltag_r: config: Domain/SharedMemory/Enable/#text: false {}
+1734574389.115583 [0] apriltag_r: config: Domain/SharedMemory/Locator/#text:  {}
+1734574389.115585 [0] apriltag_r: config: Domain/SharedMemory/Prefix/#text: DDS_CYCLONE {}
+1734574389.115587 [0] apriltag_r: config: Domain/SharedMemory/LogLevel/#text: info {}
+1734574389.115589 [0] apriltag_r: config: Domain[@Id]: 0 {1}
+1734574389.115637 [0] apriltag_r: started at 1734574389.06115595 -- 2024-12-19 02:13:09+00:00
+1734574389.115641 [0] apriltag_r: udp initialized
+1734574389.115903 [0] apriltag_r: interfaces: lo udp/127.0.0.1(q1) eno1 udp/192.168.0.11(q9) wlp2s0 wireless udp/192.168.1.108(q9) br-7c9fdd76331e udp/172.18.0.1(q9) docker0 udp/172.17.0.1(q9)
+1734574389.115908 [0] apriltag_r: selected interfaces: docker0 (index 5 priority 0)
+1734574389.115909 [0] apriltag_r: presumed robust multicast support, use for everything
+1734574389.115917 [0] apriltag_r: ownip: udp/172.17.0.1
+1734574389.115919 [0] apriltag_r: extmask: invalid/0 (not applicable)
+1734574389.115920 [0] apriltag_r: SPDP MC: udp/239.255.0.1
+1734574389.115922 [0] apriltag_r: default MC: udp/239.255.0.1
+1734574389.115923 [0] apriltag_r: SSM support included
+1734574389.116022 [0] apriltag_r: rtps_init: uc ports: disc 0 data 0
+1734574389.116024 [0] apriltag_r: rtps_init: domainid 0 participantid -2
+1734574389.116026 [0] apriltag_r: Unicast Ports: discovery 34531 data 34531
+1734574389.116037 [0] apriltag_r: Multicast Ports: discovery 7400 data 7401 
+1734574389.116046 [0] apriltag_r: interface docker0: transmit port 55234

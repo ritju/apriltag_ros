@@ -67,11 +67,11 @@ descr(const std::string& description, const bool& read_only = false)
     return descr;
 }
 
-class AprilTagNode : public rclcpp::Node {
+class AprilTagRelocationNode : public rclcpp::Node {
 public:
-    AprilTagNode(const rclcpp::NodeOptions& options);
+    AprilTagRelocationNode(const rclcpp::NodeOptions& options);
 
-    ~AprilTagNode() override;
+    ~AprilTagRelocationNode() override;
 
 private:
     const OnSetParametersCallbackHandle::SharedPtr cb_parameter;
@@ -90,7 +90,8 @@ private:
 
     std::function<void(apriltag_family_t*)> tf_destructor;
 
-    const image_transport::CameraSubscriber sub_cam;
+    const image_transport::CameraSubscriber sub_cam1;
+    const image_transport::CameraSubscriber sub_cam2;
     const rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
     tf2_ros::TransformBroadcaster tf_broadcaster;
 
@@ -137,20 +138,28 @@ private:
     bool in_idRanges(int id);
 };
 
-RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagRelocationNode)
 
 
-AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
+AprilTagRelocationNode::AprilTagRelocationNode(const rclcpp::NodeOptions& options)
   : Node("apriltag", options),
     // parameter
-    cb_parameter(add_on_set_parameters_callback(std::bind(&AprilTagNode::onParameter, this, std::placeholders::_1))),
+    cb_parameter(add_on_set_parameters_callback(std::bind(&AprilTagRelocationNode::onParameter, this, std::placeholders::_1))),
     td(apriltag_detector_create()),
     // topics
-    sub_cam(image_transport::create_camera_subscription(
+    sub_cam1(image_transport::create_camera_subscription(
         this,
-        this->get_node_topics_interface()->resolve_topic_name("image_rect"),
-        std::bind(&AprilTagNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
-        declare_parameter("image_transport", "raw", descr({}, true)),
+        this->get_node_topics_interface()->resolve_topic_name("image_rect1"),
+        std::bind(&AprilTagRelocationNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
+        // declare_parameter("image_transport", "raw", descr({}, true)),
+        "raw",
+        rmw_qos_profile_sensor_data)),
+    sub_cam2(image_transport::create_camera_subscription(
+        this,
+        this->get_node_topics_interface()->resolve_topic_name("image_rect2"),
+        std::bind(&AprilTagRelocationNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
+        // declare_parameter("image_transport", "raw", descr({}, true)),
+        "raw",
         rmw_qos_profile_sensor_data)),
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
     tf_broadcaster(this)
@@ -254,11 +263,11 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     {
         pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 20);
         detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
-        id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
+        id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagRelocationNode::marker_visible_callback, this));
 
-        id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_mac_callback, this));
-        // id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::id_selected_callback, this));
-        charger_id_sub =  this->create_subscription<std_msgs::msg::String>("/charger/id",rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),std::bind(&AprilTagNode::charger_id_callback, this, std::placeholders::_1));
+        id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagRelocationNode::id_mac_callback, this));
+        // id_selected_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagRelocationNode::id_selected_callback, this));
+        charger_id_sub =  this->create_subscription<std_msgs::msg::String>("/charger/id",rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),std::bind(&AprilTagRelocationNode::charger_id_callback, this, std::placeholders::_1));
     }
     else
     {
@@ -266,19 +275,19 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     } 
 }
 
-AprilTagNode::~AprilTagNode()
+AprilTagRelocationNode::~AprilTagRelocationNode()
 {
     apriltag_detector_destroy(td);
     tf_destructor(tf);
 }
 
-void AprilTagNode::id_mac_callback()
+void AprilTagRelocationNode::id_mac_callback()
 {
 	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 10000, "id_mac_callback");
     id_and_mac_pub->publish(msgs);
 }
 
-// void AprilTagNode::id_selected_callback()
+// void AprilTagRelocationNode::id_selected_callback()
 // {
 // 	if(id_selected)
 // 	{
@@ -290,7 +299,7 @@ void AprilTagNode::id_mac_callback()
 // 	}
 // }
 
-void AprilTagNode::charger_id_callback(std_msgs::msg::String msg)
+void AprilTagRelocationNode::charger_id_callback(std_msgs::msg::String msg)
 {
 	RCLCPP_INFO(this->get_logger(), "charger_id_callback");
 	RCLCPP_INFO(this->get_logger(), "msgs.marker_and_mac_vector.size(): %ld", msgs.marker_and_mac_vector.size());
@@ -331,7 +340,7 @@ void AprilTagNode::charger_id_callback(std_msgs::msg::String msg)
 	
 }
 
-void AprilTagNode::marker_visible_callback()
+void AprilTagRelocationNode::marker_visible_callback()
 {
 	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "/marker_visible callback");
     capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
@@ -397,7 +406,7 @@ void AprilTagNode::marker_visible_callback()
     }  
 }
 
-void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
+void AprilTagRelocationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
     // camera intrinsics for rectified images
@@ -508,7 +517,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     // apriltag_detections_destroy(&detections);
 }
 
-bool AprilTagNode::in_idRanges(int id)
+bool AprilTagRelocationNode::in_idRanges(int id)
 {
 	bool ret = false;
 	for(size_t i = 0; i < msgs.marker_and_mac_vector.size(); i++)
@@ -523,7 +532,7 @@ bool AprilTagNode::in_idRanges(int id)
 }
 
 rcl_interfaces::msg::SetParametersResult
-AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
+AprilTagRelocationNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
 {
     rcl_interfaces::msg::SetParametersResult result;
 
@@ -549,7 +558,7 @@ AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
     return result;
 }
 
-bool AprilTagNode::getTransform(
+bool AprilTagRelocationNode::getTransform(
 	const std::string & refFrame, const std::string & childFrame,
 	geometry_msgs::msg::TransformStamped & transform)
 {

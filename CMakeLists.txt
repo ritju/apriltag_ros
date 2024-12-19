@@ -70,6 +70,11 @@ ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs apri
 target_link_libraries(AprilTagNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(AprilTagNode PLUGIN "AprilTagNode" EXECUTABLE "apriltag_node")
 
+add_library(AprilTagRelocationNode SHARED src/AprilTagRelocationNode.cpp)
+ament_target_dependencies(AprilTagRelocationNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+target_link_libraries(AprilTagRelocationNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
+rclcpp_components_register_node(AprilTagRelocationNode PLUGIN "AprilTagRelocationNode" EXECUTABLE "apriltag_relocation_node")
+
 add_library(AprilTagDoubleNode SHARED src/AprilTagDoubleNode.cpp)
 ament_target_dependencies(AprilTagDoubleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(AprilTagDoubleNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
@@ -77,7 +82,7 @@ rclcpp_components_register_node(AprilTagDoubleNode PLUGIN "AprilTagDoubleNode" E
 
 ament_environment_hooks(${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH})
 
-install(TARGETS AprilTagNode AprilTagDoubleNode
+install(TARGETS AprilTagNode AprilTagDoubleNode AprilTagRelocationNode
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )

@@ -50,14 +50,11 @@ def launch_setup(context, *args, **kwargs):
     apriltag_ros_node = Node(
         executable='apriltag_node',
         package='apriltag_ros',
-        name='apriltag_node_test',
+        name='apriltag_charge_single_node',
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
-        remappings=[('/image_rect1', '/camera3/color/image_raw'),
-                    ('/image_rect2', '/camera1/color/image_raw'),
-                    # ('/camera_info', '/camera3/color/camera_info'),
-                    ]
+        remappings=[('/image_rect', '/camera3/color/image_raw'),]
     )
 
     return [apriltag_ros_node]
