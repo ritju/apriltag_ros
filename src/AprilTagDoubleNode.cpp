@@ -278,7 +278,7 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 
     // tf for base_link to dummy base_link
     tf_base_link_to_dummy_base_link.setIdentity();
-    tf_base_link_to_dummy_base_link.setOrigin(tf2::Vector3(base_link_dummy_transform_x, base_link_dummy_transform_y, 0.0));
+    tf_base_link_to_dummy_base_link.setOrigin(tf2::Vector3(base_link_dummy_transform_x, base_link_dummy_transform_y, 0.841));
     tf2::Quaternion q_base_link_to_dummy_base_link;
     q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
@@ -639,8 +639,8 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         auto tf_fixed_to_current = tf_marker1_to_marker2_fixed.inverse() * tf_marker1_to_marker2_current;
         float error_x, error_y, error_z;
         error_x = tf_fixed_to_current.getOrigin()[0];
-        error_y = tf_fixed_to_current.getOrigin()[0];
-        error_z = tf_fixed_to_current.getOrigin()[0];
+        error_y = tf_fixed_to_current.getOrigin()[1];
+        error_z = tf_fixed_to_current.getOrigin()[2];
         float error_radius;
         error_radius = std::hypot(std::hypot(error_x, error_y), error_z);
         
