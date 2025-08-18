@@ -278,7 +278,7 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 
     // tf for base_link to dummy base_link
     tf_base_link_to_dummy_base_link.setIdentity();
-    tf_base_link_to_dummy_base_link.setOrigin(tf2::Vector3(base_link_dummy_transform_x, base_link_dummy_transform_y, 0.0));
+    tf_base_link_to_dummy_base_link.setOrigin(tf2::Vector3(base_link_dummy_transform_x, base_link_dummy_transform_y, 0.5025));
     tf2::Quaternion q_base_link_to_dummy_base_link;
     q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
@@ -380,7 +380,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
     tf_baselink_to_camera.setIdentity();
     geometry_msgs::msg::TransformStamped stamped_tf_baselink_to_camera_msg;
     tf2::Stamped<tf2::Transform> stamped_tf_baselink_to_camera;
-    if(getTransform(std::string("base_link"), std::string("camera3_color_optical_frame"), stamped_tf_baselink_to_camera_msg))
+    if(getTransform(std::string("base_link"), std::string("rgb_camera_back"), stamped_tf_baselink_to_camera_msg))
     {
         tf2::fromMsg(stamped_tf_baselink_to_camera_msg, stamped_tf_baselink_to_camera);
         tf_baselink_to_camera = static_cast<tf2::Transform>(stamped_tf_baselink_to_camera);
@@ -388,7 +388,8 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
     
     // camera intrinsics for rectified images
-    const std::array<double, 4> intrinsics = {msg_ci->p.data()[0], msg_ci->p.data()[5], msg_ci->p.data()[2], msg_ci->p.data()[6]};
+    // const std::array<double, 4> intrinsics = {msg_ci->p.data()[0], msg_ci->p.data()[5], msg_ci->p.data()[2], msg_ci->p.data()[6]};
+    const std::array<double, 4> intrinsics = {msg_ci->k.data()[0], msg_ci->k.data()[4], msg_ci->k.data()[2], msg_ci->k.data()[5]};
 
     // convert to 8bit monochrome image
     const cv::Mat img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
@@ -458,7 +459,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         // RCLCPP_INFO(get_logger(), "size: %f", size);
         // RCLCPP_INFO(get_logger(), "tag_edge_size: %f", tag_edge_size);
         if(estimate_pose != nullptr) {
-            tf.transform = estimate_pose(det, intrinsics, size);
+            tf.transform = estimate_pose(det, intrinsics, size, shared_from_this());
         }
         
         std::pair<int, geometry_msgs::msg::TransformStamped> id_tf_pair;
@@ -639,8 +640,8 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         auto tf_fixed_to_current = tf_marker1_to_marker2_fixed.inverse() * tf_marker1_to_marker2_current;
         float error_x, error_y, error_z;
         error_x = tf_fixed_to_current.getOrigin()[0];
-        error_y = tf_fixed_to_current.getOrigin()[0];
-        error_z = tf_fixed_to_current.getOrigin()[0];
+        error_y = tf_fixed_to_current.getOrigin()[1];
+        error_z = tf_fixed_to_current.getOrigin()[2];
         float error_radius;
         error_radius = std::hypot(std::hypot(error_x, error_y), error_z);
         

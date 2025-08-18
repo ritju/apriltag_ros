@@ -447,7 +447,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : "april" + std::string(det->family->name) + ":" + std::to_string(det->id);
         const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
         if(estimate_pose != nullptr) {
-            tf.transform = estimate_pose(det, intrinsics, size);
+            tf.transform = estimate_pose(det, intrinsics, size, shared_from_this());
         }
 
         tfs.push_back(tf);

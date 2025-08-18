@@ -41,8 +41,9 @@ geometry_msgs::msg::Transform tf_from_cv(const cv::Mat_<double>& tvec, const cv:
 }
 
 geometry_msgs::msg::Transform
-homography(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize)
+homography(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize, rclcpp::Node::SharedPtr node)
 {
+    (void)node;
     apriltag_detection_info_t info = {detection, tagsize, intr[0], intr[1], intr[2], intr[3]};
 
     apriltag_pose_t pose;
@@ -52,7 +53,7 @@ homography(apriltag_detection_t* const detection, const std::array<double, 4>& i
 }
 
 geometry_msgs::msg::Transform
-pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize)
+pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize, rclcpp::Node::SharedPtr node)
 {
     const std::vector<cv::Point3d> objectPoints{
         {-tagsize / 2, -tagsize / 2, 0},
@@ -72,10 +73,30 @@ pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, do
     cameraMatrix(0, 0) = intr[0];// fx
     cameraMatrix(1, 1) = intr[1];// fy
     cameraMatrix(0, 2) = intr[2];// cx
-    cameraMatrix(1, 2) = intr[3];// cy
+    cameraMatrix(1, 2) = intr[3];// cy    
 
     cv::Mat rvec, tvec;
     cv::solvePnP(objectPoints, imagePoints, cameraMatrix, {}, rvec, tvec);
+
+    const cv::Quat<double> q_ = cv::Quat<double>::createFromRvec(rvec);
+    tf2::Quaternion q(q_.x, q_.y, q_.z, q_.w);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    
+    RCLCPP_INFO(node->get_logger(), "=====================================================");
+    RCLCPP_INFO(node->get_logger(), "tag_size: %f", tagsize);
+    RCLCPP_INFO(node->get_logger(), "fx: %f, fy: %f, cx: %f, cy: %f", cameraMatrix(0, 0), cameraMatrix(1, 1), cameraMatrix(0, 2), cameraMatrix(1, 2));
+    RCLCPP_INFO(node->get_logger(), "p0: (%f, %f), p1: (%f, %f)",    
+        detection->p[0][0], detection->p[0][1], 
+        detection->p[1][0], detection->p[1][1]
+    );
+    RCLCPP_INFO(node->get_logger(), "p2: (%f, %f), p3: (%f, %f)", 
+        detection->p[2][0], detection->p[2][1],
+        detection->p[3][0], detection->p[3][1]
+    );
+    
+    RCLCPP_INFO(node->get_logger(), "t_x: %f, t_y: %f, t_z: %f", tvec.at<double>(0),tvec.at<double>(1), tvec.at<double>(2));
+    RCLCPP_INFO(node->get_logger(), "roll: %f, pitch: %f, yaw: %f", roll, pitch, yaw);
 
     return tf_from_cv(tvec, rvec);
 }

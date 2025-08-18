@@ -9,8 +9,9 @@ from launch.substitutions import LaunchConfiguration
 from launch.substitutions import TextSubstitution
 from nav2_common.launch import RewrittenYaml
 
-def launch_setup(context, *args, **kwargs):
-    
+def launch_setup(context, *args, **kwargs):  
+    log_level_arg = DeclareLaunchArgument('log_level', default_value='info', description='define apriltag_double node log level')
+
     marker_id_and_bluetooth_mac_vec = ['']
     try:
         if 'marker_id_and_bluetooth_mac' in os.environ:
@@ -121,8 +122,9 @@ def launch_setup(context, *args, **kwargs):
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
-        remappings=[('/image_rect', '/camera3/color/image_raw'),
-                    ('/camera_info', '/camera3/color/camera_info')]
+        remappings=[('/image_rect', '/camera_back'),
+                    ('/camera_info', '/rgb_camera_back/camera_info')],
+        arguments=['--ros-args', '--log-level', ['apriltag_double:=', LaunchConfiguration('log_level')]],
     )
 
     return [apriltag_ros_node]
@@ -133,5 +135,6 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     ld.add_action(OpaqueFunction(function=launch_setup))
+    # ld.add_action(log_level_arg)
 
     return ld
