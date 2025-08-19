@@ -96,6 +96,18 @@ def launch_setup(context, *args, **kwargs):
     except Exception as e:
         print(f'exception: {str(e)}')
         print("Please input BASE_LINK_DUMMY_TRANSFORM_Y in docker-compose.yml")
+
+    base_link_dummy_transform_z = 0.50
+    try :
+        if 'BASE_LINK_DUMMY_TRANSFORM_Z' in os.environ:
+            base_link_dummy_transform_z = float(os.environ.get('BASE_LINK_DUMMY_TRANSFORM_Z'))
+            print(f'Get base_link_dummy_transform_z {base_link_dummy_transform_z} from docker-compose.yml')
+        else:
+            base_link_dummy_transform_z = 0.50
+            print(f'Using default base_link_dummy_transform_Z 0.50')
+    except Exception as e:
+        print(f'exception: {str(e)}')
+        print("Please input BASE_LINK_DUMMY_TRANSFORM_Z in docker-compose.yml")
     
     
     apriltag_ros_extra_params = {
@@ -114,6 +126,25 @@ def launch_setup(context, *args, **kwargs):
     # get params file
     apriltag_node_params_file = os.path.join(apriltag_pkg_path, 'cfg', 'tags_36h11.yaml')
 
+    image_topic = '/camera3/color/image_raw'
+    image_info_topic = '/camera3/color/camera_info'
+    robot_version = 'real_robot_mk'
+    try:
+        if 'ROBOT_VERSION' in os.environ:
+            robot_version = os.environ.get('ROBOT_VERSION')
+            print(f'get ROBOT_VERSION {robot_version} from docker-compose.yaml file')
+        else:
+            robot_version = 'real_robot_mk.yaml'
+            print("Using default robot_version real_robot_mk.")
+    except Exception as e:
+        print(f'exception: {str(e)}')
+        print("Please input ROBOT_VERSION in docker-compose.yaml")
+        robot_version = 'real_robot_mk.yaml'
+    
+    if robot_version == 'outdoor_cleaner_1':
+        image_topic = '/camera_back'
+        image_info_topic = '/rgb_camera_back/camera_info'
+
     # apriltag_ros node
     apriltag_ros_node = Node(
         executable='apriltag_double_node',
@@ -122,8 +153,8 @@ def launch_setup(context, *args, **kwargs):
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
-        remappings=[('/image_rect', '/camera_back'),
-                    ('/camera_info', '/rgb_camera_back/camera_info')],
+        remappings=[('/image_rect', image_topic),
+                    ('/camera_info', image_info_topic)],
         arguments=['--ros-args', '--log-level', ['apriltag_double:=', LaunchConfiguration('log_level')]],
     )
 

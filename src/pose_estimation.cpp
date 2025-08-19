@@ -83,20 +83,20 @@ pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, do
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     
-    RCLCPP_INFO(node->get_logger(), "=====================================================");
-    RCLCPP_INFO(node->get_logger(), "tag_size: %f", tagsize);
-    RCLCPP_INFO(node->get_logger(), "fx: %f, fy: %f, cx: %f, cy: %f", cameraMatrix(0, 0), cameraMatrix(1, 1), cameraMatrix(0, 2), cameraMatrix(1, 2));
-    RCLCPP_INFO(node->get_logger(), "p0: (%f, %f), p1: (%f, %f)",    
+    RCLCPP_DEBUG(node->get_logger(), "=====================================================");
+    RCLCPP_DEBUG(node->get_logger(), "tag_size: %f", tagsize);
+    RCLCPP_DEBUG(node->get_logger(), "fx: %f, fy: %f, cx: %f, cy: %f", cameraMatrix(0, 0), cameraMatrix(1, 1), cameraMatrix(0, 2), cameraMatrix(1, 2));
+    RCLCPP_DEBUG(node->get_logger(), "p0: (%f, %f), p1: (%f, %f)",    
         detection->p[0][0], detection->p[0][1], 
         detection->p[1][0], detection->p[1][1]
     );
-    RCLCPP_INFO(node->get_logger(), "p2: (%f, %f), p3: (%f, %f)", 
+    RCLCPP_DEBUG(node->get_logger(), "p2: (%f, %f), p3: (%f, %f)", 
         detection->p[2][0], detection->p[2][1],
         detection->p[3][0], detection->p[3][1]
     );
     
-    RCLCPP_INFO(node->get_logger(), "t_x: %f, t_y: %f, t_z: %f", tvec.at<double>(0),tvec.at<double>(1), tvec.at<double>(2));
-    RCLCPP_INFO(node->get_logger(), "roll: %f, pitch: %f, yaw: %f", roll, pitch, yaw);
+    RCLCPP_DEBUG(node->get_logger(), "t_x: %f, t_y: %f, t_z: %f", tvec.at<double>(0),tvec.at<double>(1), tvec.at<double>(2));
+    RCLCPP_DEBUG(node->get_logger(), "roll: %f, pitch: %f, yaw: %f", roll, pitch, yaw);
 
     return tf_from_cv(tvec, rvec);
 }
