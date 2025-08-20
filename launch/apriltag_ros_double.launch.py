@@ -142,7 +142,7 @@ def launch_setup(context, *args, **kwargs):
         robot_version = 'real_robot_mk.yaml'
     
     if robot_version == 'outdoor_cleaner_1':
-        image_topic = '/camera_back'
+        image_topic =      '/rgb_camera_back/image_raw'
         image_info_topic = '/rgb_camera_back/camera_info'
 
     # apriltag_ros node
