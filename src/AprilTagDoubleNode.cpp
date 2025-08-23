@@ -381,7 +381,7 @@ void AprilTagDoubleNode::marker_visible_callback()
         marker_detect_status.marker_visible = false;
         marker_detect_status.marker_id = -1;
         marker_detect_status.marker_id_correction = -1;
-        RCLCPP_INFO(this->get_logger(), "timeout, publish false");
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "timeout, publish false");
     }
     detect_status->publish(marker_detect_status);        
 }
