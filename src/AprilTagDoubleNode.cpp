@@ -156,6 +156,9 @@ private:
     int frame_not_detected = 0;
     int frame_error = 0;
 
+    // fix bug for /marker_visible, when camera topic is not received
+    double now_time = 0.0, last_time_camera_topic_received = 0.0;
+
 };
 
 RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagDoubleNode)
@@ -366,12 +369,27 @@ void AprilTagDoubleNode::charger_id_callback(std_msgs::msg::String msg)
 void AprilTagDoubleNode::marker_visible_callback()
 {
 	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "/marker_visible callback");
+    now_time = now().seconds();
+
+    // RCLCPP_INFO(this->get_logger(), "--------------------------");
+    // RCLCPP_INFO(this->get_logger(), "now_time: %f", now_time);
+    // RCLCPP_INFO(this->get_logger(), "last_time_camera_topic_received: %f", last_time_camera_topic_received);
+    // RCLCPP_INFO(this->get_logger(), "delta_time: %f", now_time - last_time_camera_topic_received);
+
+    if (now_time - last_time_camera_topic_received > 0.5) // if camera was not received ,publish false
+    {
+        marker_detect_status.marker_visible = false;
+        marker_detect_status.marker_id = -1;
+        marker_detect_status.marker_id_correction = -1;
+        RCLCPP_INFO(this->get_logger(), "timeout, publish false");
+    }
     detect_status->publish(marker_detect_status);        
 }
 
 void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
+    last_time_camera_topic_received = now().seconds();
     try
     {
     // init for tfs
