@@ -97,14 +97,14 @@ def launch_setup(context, *args, **kwargs):
         print(f'exception: {str(e)}')
         print("Please input BASE_LINK_DUMMY_TRANSFORM_Y in docker-compose.yml")
 
-    base_link_dummy_transform_z = 0.50
+    base_link_dummy_transform_z = 0.841
     try :
         if 'BASE_LINK_DUMMY_TRANSFORM_Z' in os.environ:
             base_link_dummy_transform_z = float(os.environ.get('BASE_LINK_DUMMY_TRANSFORM_Z'))
             print(f'Get base_link_dummy_transform_z {base_link_dummy_transform_z} from docker-compose.yml')
         else:
-            base_link_dummy_transform_z = 0.50
-            print(f'Using default base_link_dummy_transform_Z 0.50')
+            base_link_dummy_transform_z = 0.841
+            print(f'Using default base_link_dummy_transform_Z: {base_link_dummy_transform_z}')
     except Exception as e:
         print(f'exception: {str(e)}')
         print("Please input BASE_LINK_DUMMY_TRANSFORM_Z in docker-compose.yml")
@@ -118,6 +118,7 @@ def launch_setup(context, *args, **kwargs):
         'radius_threshold': radius_threshold,
         'base_link_dummy_transform_x': base_link_dummy_transform_x,
         'base_link_dummy_transform_y': base_link_dummy_transform_y,
+        'base_link_dummy_transform_z': base_link_dummy_transform_z,
     }    
 
     # get pkg path

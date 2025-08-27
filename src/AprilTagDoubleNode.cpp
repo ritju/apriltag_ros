@@ -400,7 +400,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
     tf_baselink_to_camera.setIdentity();
     geometry_msgs::msg::TransformStamped stamped_tf_baselink_to_camera_msg;
     tf2::Stamped<tf2::Transform> stamped_tf_baselink_to_camera;
-    if(getTransform(std::string("base_link"), std::string("rgb_camera_back"), stamped_tf_baselink_to_camera_msg))
+    if(getTransform(std::string("base_link"), msg_img->header.frame_id, stamped_tf_baselink_to_camera_msg))
     {
         tf2::fromMsg(stamped_tf_baselink_to_camera_msg, stamped_tf_baselink_to_camera);
         tf_baselink_to_camera = static_cast<tf2::Transform>(stamped_tf_baselink_to_camera);
