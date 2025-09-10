@@ -371,13 +371,13 @@ void AprilTagDoubleNode::marker_visible_callback()
 	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "/marker_visible callback");
     now_time = now().seconds();
 
-    // RCLCPP_INFO(this->get_logger(), "--------------------------");
-    // RCLCPP_INFO(this->get_logger(), "now_time: %f", now_time);
-    // RCLCPP_INFO(this->get_logger(), "last_time_camera_topic_received: %f", last_time_camera_topic_received);
-    // RCLCPP_INFO(this->get_logger(), "delta_time: %f", now_time - last_time_camera_topic_received);
-
     if (now_time - last_time_camera_topic_received > 0.5) // if camera was not received ,publish false
     {
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "--------------------------");
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "now_time: %f", now_time);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "last_time_camera_topic_received: %f", last_time_camera_topic_received);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "delta_time: %f", now_time - last_time_camera_topic_received);
+
         marker_detect_status.marker_visible = false;
         marker_detect_status.marker_id = -1;
         marker_detect_status.marker_id_correction = -1;
