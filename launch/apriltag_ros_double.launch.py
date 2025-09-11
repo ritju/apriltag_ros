@@ -15,8 +15,8 @@ def launch_setup(context, *args, **kwargs):
     marker_id_and_bluetooth_mac_vec = ['']
     try:
         if 'marker_id_and_bluetooth_mac' in os.environ:
-            print('get marker_id_and_bluetooth_mac from env.')
             marker_id_and_bluetooth_mac_vec = os.environ.get('marker_id_and_bluetooth_mac').split(',')
+            print(f'get marker_id_and_bluetooth_mac {marker_id_and_bluetooth_mac_vec} from env.')
             if marker_id_and_bluetooth_mac_vec == ['']:
                 raise
         else:

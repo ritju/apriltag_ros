@@ -90,7 +90,11 @@ private:
 
     std::function<void(apriltag_family_t*)> tf_destructor;
 
-    const image_transport::CameraSubscriber sub_cam;
+    // const image_transport::CameraSubscriber sub_cam;
+    image_transport::Subscriber image_sub;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr info_sub;
+    sensor_msgs::msg::CameraInfo::ConstSharedPtr last_camera_info_;
+
     const rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
     tf2_ros::TransformBroadcaster tf_broadcaster;
 
@@ -170,17 +174,42 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     cb_parameter(add_on_set_parameters_callback(std::bind(&AprilTagDoubleNode::onParameter, this, std::placeholders::_1))),
     td(apriltag_detector_create()),
     // topics
-    sub_cam(image_transport::create_camera_subscription(
-        this,
-        this->get_node_topics_interface()->resolve_topic_name("image_rect"),
-        std::bind(&AprilTagDoubleNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
-        declare_parameter("image_transport", "raw", descr({}, true)),
-        rmw_qos_profile_sensor_data)),
+    // sub_cam(image_transport::create_camera_subscription(
+    //     this,
+    //     this->get_node_topics_interface()->resolve_topic_name("image_rect"),
+    //     std::bind(&AprilTagDoubleNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
+    //     declare_parameter("image_transport", "raw", descr({}, true)),
+    //     rmw_qos_profile_sensor_data)),
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
 	tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+    // 独立订阅图像话题
+    image_sub = image_transport::create_subscription(
+        this, "/image_rect", 
+        [this](const sensor_msgs::msg::Image::ConstSharedPtr& img) {
+            // 手动处理时间戳差异
+            if (last_camera_info_) {
+                info_sub.reset();
+                this->onCamera(img, last_camera_info_);
+            }
+            else
+            {
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "camera_info topic hasn't be received, waiting ...");
+            }
+        },
+        "raw", rmw_qos_profile_sensor_data
+    );
+
+    // 单独订阅camera_info
+    info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        "/camera_info", 1,
+        [this](const sensor_msgs::msg::CameraInfo::ConstSharedPtr& info) {
+            last_camera_info_ = info;
+        }
+    );
 
     // read-only parameters
     apriltag_family_name = declare_parameter("family", "36h11", descr("tag family", true));
@@ -389,7 +418,8 @@ void AprilTagDoubleNode::marker_visible_callback()
 void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
-    last_time_camera_topic_received = now().seconds();
+    last_time_camera_topic_received = this->get_clock()->now().seconds();
+    // RCLCPP_INFO(get_logger(), "received_time: %f", last_time_camera_topic_received);
     try
     {
     // init for tfs
@@ -706,11 +736,11 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             frame_error++;
             if (similarity <= similarity_threshold)
             {
-                RCLCPP_INFO(get_logger(), "error tf detected, similarity  : %f, threshold: %f", similarity, similarity_threshold);
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "error tf detected, similarity  : %f, threshold: %f", similarity, similarity_threshold);
             }
             if (error_radius >= radius_threshold)
             {
-                RCLCPP_INFO(get_logger(), "error tf detected, error_raidus: %f, threshold: %f", error_radius, radius_threshold);
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "error tf detected, error_raidus: %f, threshold: %f", error_radius, radius_threshold);
             }
         }
 
