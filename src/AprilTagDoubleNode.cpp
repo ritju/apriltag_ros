@@ -205,7 +205,7 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 
     // 单独订阅camera_info
     info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-        "/camera_info", 1,
+        "/camera_info", rclcpp::QoS(1).best_effort(),
         [this](const sensor_msgs::msg::CameraInfo::ConstSharedPtr& info) {
             last_camera_info_ = info;
         }
