@@ -9,8 +9,7 @@ from launch.substitutions import LaunchConfiguration
 from launch.substitutions import TextSubstitution
 from nav2_common.launch import RewrittenYaml
 
-def launch_setup(context, *args, **kwargs):  
-    log_level_arg = DeclareLaunchArgument('log_level', default_value='info', description='define apriltag_double node log level')
+def launch_setup(context, *args, **kwargs):      
 
     marker_id_and_bluetooth_mac_vec = ['']
     try:
@@ -127,24 +126,30 @@ def launch_setup(context, *args, **kwargs):
     # get params file
     apriltag_node_params_file = os.path.join(apriltag_pkg_path, 'cfg', 'tags_36h11.yaml')
 
-    image_topic = '/camera3/color/image_raw'
-    image_info_topic = '/camera3/color/camera_info'
-    robot_version = 'real_robot_mk'
-    try:
-        if 'ROBOT_VERSION' in os.environ:
-            robot_version = os.environ.get('ROBOT_VERSION')
-            print(f'get ROBOT_VERSION {robot_version} from docker-compose.yaml file')
+    image_topic = '/camera3/color/image_raw'    
+    try :
+        if 'APRILTAG_DOUBLE_IMAGE_TOPIC' in os.environ:
+            image_topic = os.environ.get('APRILTAG_DOUBLE_IMAGE_TOPIC')
+            print(f'Get image_topic {image_topic} from docker-compose.yml')
         else:
-            robot_version = 'real_robot_mk.yaml'
-            print("Using default robot_version real_robot_mk.")
+            image_topic = "/camera3/color/image_raw"
+            print(f'Using default image_topic /camera3/color/image_raw')
     except Exception as e:
         print(f'exception: {str(e)}')
-        print("Please input ROBOT_VERSION in docker-compose.yaml")
-        robot_version = 'real_robot_mk.yaml'
-    
-    if robot_version == 'outdoor_cleaner_1':
-        image_topic =      '/rgb_camera_back/image_raw'
-        image_info_topic = '/rgb_camera_back/camera_info'
+        print("Please input APRILTAG_DOUBLE_IMAGE_TOPIC in docker-compose.yml")
+
+
+    camera_info_topic = '/camera3/color/camera_info'
+    try :
+        if 'APRILTAG_DOUBLE_CAMERA_INFO_TOPIC' in os.environ:
+            camera_info_topic = os.environ.get('APRILTAG_DOUBLE_CAMERA_INFO_TOPIC')
+            print(f'Get camera_info_topic {camera_info_topic} from docker-compose.yml')
+        else:
+            camera_info_topic = "/camera3/color/camera_info"
+            print(f'Using default camera_info_topic /camera3/color/camera_info')
+    except Exception as e:
+        print(f'exception: {str(e)}')
+        print("Please input APRILTAG_DOUBLE_CAMERA_INFO_TOPIC in docker-compose.yml")
 
     # apriltag_ros node
     apriltag_ros_node = Node(
@@ -155,8 +160,8 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
         remappings=[('/image_rect', image_topic),
-                    ('/camera_info', image_info_topic)],
-        arguments=['--ros-args', '--log-level', ['apriltag_double:=', LaunchConfiguration('log_level')]],
+                    ('/camera_info', camera_info_topic)],
+        arguments=['--ros-args', '--log-level', ['apriltag_double_node:=', LaunchConfiguration('log_level')]],
     )
 
     return [apriltag_ros_node]
@@ -165,8 +170,9 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     
     ld = LaunchDescription()
+    log_level_arg = DeclareLaunchArgument('log_level', default_value='info', description='define apriltag_double node log level')
 
     ld.add_action(OpaqueFunction(function=launch_setup))
-    # ld.add_action(log_level_arg)
+    ld.add_action(log_level_arg)
 
     return ld

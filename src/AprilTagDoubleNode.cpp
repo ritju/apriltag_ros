@@ -442,7 +442,19 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
     const std::array<double, 4> intrinsics = {msg_ci->k.data()[0], msg_ci->k.data()[4], msg_ci->k.data()[2], msg_ci->k.data()[5]};
 
     // convert to 8bit monochrome image
-    const cv::Mat img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
+    // 添加数据有效性检查
+    if (!msg_img || msg_img->width <= 0 || msg_img->height <= 0) {
+        RCLCPP_ERROR(get_logger(), "Invalid image message received");
+        return;
+    }
+    cv::Mat img_uint8;
+    // 使用try-catch结构提高代码健壮性
+    try {
+         img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
+    } catch (const cv::Exception& e) {
+        RCLCPP_ERROR(get_logger(), "OpenCV exception: %s", e.what());
+        return;
+    }
 
     image_u8_t im{img_uint8.cols, img_uint8.rows, img_uint8.cols, img_uint8.data};
 
