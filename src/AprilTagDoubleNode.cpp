@@ -128,6 +128,8 @@ private:
     zarray_t detections;
     int marker_id;
     int marker_id_correction;
+    bool marker_visible_last = false;
+    bool marker_visible_pub = false;
     float marker_frame_translation;
     capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
     std::string apriltag_family_name;
@@ -334,7 +336,7 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 
 
     pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
-    detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
+    detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", rclcpp::QoS(1).reliable().transient_local());
     id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
     
     marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagDoubleNode::marker_visible_callback, this));
@@ -396,23 +398,41 @@ void AprilTagDoubleNode::charger_id_callback(std_msgs::msg::String msg)
 }
 
 void AprilTagDoubleNode::marker_visible_callback()
-{
-	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "/marker_visible callback");
+{    
     now_time = now().seconds();
 
     if (now_time - last_time_camera_topic_received > 0.5) // if camera was not received ,publish false
     {
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "--------------------------");
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "now_time: %f", now_time);
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "last_time_camera_topic_received: %f", last_time_camera_topic_received);
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "delta_time: %f", now_time - last_time_camera_topic_received);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "--------------------------");
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "now_time: %f", now_time);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "last_time_camera_topic_received: %f", last_time_camera_topic_received);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "delta_time: %f", now_time - last_time_camera_topic_received);
 
         marker_detect_status.marker_visible = false;
         marker_detect_status.marker_id = -1;
         marker_detect_status.marker_id_correction = -1;
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "timeout, publish false");
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "timeout, change marker_visible = false");
     }
-    detect_status->publish(marker_detect_status);        
+
+    if (!marker_visible_pub)
+    {
+        RCLCPP_INFO(get_logger(), "pub topic /marker_visible first time.");
+        detect_status->publish(marker_detect_status);
+        marker_visible_pub = true;
+        marker_visible_last = marker_detect_status.marker_visible;
+    }
+    else
+    {
+        if (marker_visible_last != marker_detect_status.marker_visible)
+        {
+            RCLCPP_INFO(get_logger(), "topic /marker_visible changed from %s to %s .",
+                marker_visible_last ? "true": "false",
+                marker_detect_status.marker_visible ? "true" : "false"
+            );
+            detect_status->publish(marker_detect_status);
+            marker_visible_last = marker_detect_status.marker_visible;
+        }
+    }           
 }
 
 void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,

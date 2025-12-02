@@ -124,6 +124,8 @@ private:
     zarray_t detections;
     int marker_id;
     
+    bool marker_visible_last = false;
+    bool marker_visible_pub = false;
 
     void id_mac_callback();
     // void id_selected_callback();
@@ -235,7 +237,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
 
     pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
-    detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", 10);
+    detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", rclcpp::QoS(1).reliable().transient_local());
     id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
     
     marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
@@ -320,7 +322,6 @@ void AprilTagNode::marker_visible_callback()
     {
         // RCLCPP_INFO(get_logger(), "detections's size == 0");
         marker_detect_status.marker_visible = false;
-        detect_status->publish(marker_detect_status);
     }
     else if (detections_size > 0)
     {
@@ -337,7 +338,6 @@ void AprilTagNode::marker_visible_callback()
                 if (det->id == marker_id)
                 {
                     marker_detect_status.marker_visible = true;
-                    detect_status->publish(marker_detect_status);
                     break;
                 }
                 else
@@ -345,7 +345,6 @@ void AprilTagNode::marker_visible_callback()
                     if (i == (detections_size - 1))
                     {
                         marker_detect_status.marker_visible = false;
-                        detect_status->publish(marker_detect_status);
                     }
                 }			
             }
@@ -359,7 +358,6 @@ void AprilTagNode::marker_visible_callback()
                 if (in_idRanges(det->id))
                 {
                     marker_detect_status.marker_visible = true;
-                    detect_status->publish(marker_detect_status);
                     break;
                 }
                 else
@@ -367,12 +365,26 @@ void AprilTagNode::marker_visible_callback()
                     if (i == (detections_size - 1))
                     {
                         marker_detect_status.marker_visible = false;
-                        detect_status->publish(marker_detect_status);
                     }
                 }	
             }
         }
-    }  
+    }
+
+    if (!marker_visible_pub)
+    {
+        detect_status->publish(marker_detect_status);
+        marker_visible_pub = true;
+        marker_visible_last = marker_detect_status.marker_visible;
+    }
+    else
+    {
+        if (marker_visible_last != marker_detect_status.marker_visible)
+        {
+            detect_status->publish(marker_detect_status);
+            marker_visible_last = marker_detect_status.marker_visible;
+        }
+    }
 }
 
 void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
