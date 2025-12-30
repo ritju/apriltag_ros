@@ -67,11 +67,11 @@ descr(const std::string& description, const bool& read_only = false)
     return descr;
 }
 
-class AprilTagNode : public rclcpp::Node {
+class CalibrationNode : public rclcpp::Node {
 public:
-    AprilTagNode(const rclcpp::NodeOptions& options);
+    CalibrationNode(const rclcpp::NodeOptions& options);
 
-    ~AprilTagNode() override;
+    ~CalibrationNode() override;
 
 private:
     const OnSetParametersCallbackHandle::SharedPtr cb_parameter;
@@ -133,24 +133,25 @@ private:
     void marker_visible_callback();
 };
 
-RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(CalibrationNode)
 
 
-AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
+CalibrationNode::CalibrationNode(const rclcpp::NodeOptions& options)
   : Node("apriltag", options),
     // parameter
-    cb_parameter(add_on_set_parameters_callback(std::bind(&AprilTagNode::onParameter, this, std::placeholders::_1))),
+    cb_parameter(add_on_set_parameters_callback(std::bind(&CalibrationNode::onParameter, this, std::placeholders::_1))),
     td(apriltag_detector_create()),
     // topics
     sub_cam(image_transport::create_camera_subscription(
         this,
         this->get_node_topics_interface()->resolve_topic_name("image_rect"),
-        std::bind(&AprilTagNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
+        std::bind(&CalibrationNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
         declare_parameter("image_transport", "raw", descr({}, true)),
         rmw_qos_profile_sensor_data)),
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
+    RCLCPP_INFO(get_logger(), "Calibration Node started.");
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
 	tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -180,12 +181,19 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     declare_parameter("marker_id_and_bluetooth_mac_vec", std::vector<std::string>(), descr("the vector of marker id and bluetooth mac"));
 
     // tf_base_link_to_marker
-    marker_translation_x = declare_parameter("marker_translation_x", 2.0, descr("default marker_translation_x", true));
-    marker_translation_y = declare_parameter("marker_translation_y", 0.0, descr("default marker_translation_y", true));
-    marker_translation_z = declare_parameter("marker_translation_z", 1.0, descr("default marker_translation_z", true));
+    marker_translation_x = declare_parameter("marker_translation_x", 2.2, descr("default marker_translation_x", true));
+    marker_translation_y = declare_parameter("marker_translation_y", -0.641, descr("default marker_translation_y", true));
+    marker_translation_z = declare_parameter("marker_translation_z", 0.9, descr("default marker_translation_z", true));
     marker_roll = declare_parameter("marker_roll", 0.0, descr("default marker_roll", true));
     marker_pitch = declare_parameter("marker_pitch", 0.0, descr("default marker_pitch", true));
     marker_yaw = declare_parameter("marker_yaw", 0.0, descr("default marker_yaw", true));
+
+    RCLCPP_INFO(get_logger(), "marker_translation_x: %.2f", marker_translation_x);
+    RCLCPP_INFO(get_logger(), "marker_translation_y: %.2f", marker_translation_y);
+    RCLCPP_INFO(get_logger(), "marker_translation_z: %.2f", marker_translation_z);
+    RCLCPP_INFO(get_logger(), "marker_roll: %.2f", marker_roll);
+    RCLCPP_INFO(get_logger(), "marker_pitch: %.2f", marker_pitch);
+    RCLCPP_INFO(get_logger(), "marker_yaw: %.2f", marker_yaw);
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0/94:C9:60:43:BE:07"});
     // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
@@ -246,16 +254,16 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
 
     detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", rclcpp::QoS(1).reliable().transient_local());
     
-    marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagNode::marker_visible_callback, this));
+    marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&CalibrationNode::marker_visible_callback, this));
 }
 
-AprilTagNode::~AprilTagNode()
+CalibrationNode::~CalibrationNode()
 {
     apriltag_detector_destroy(td);
     tf_destructor(tf);
 }
 
-void AprilTagNode::marker_visible_callback()
+void CalibrationNode::marker_visible_callback()
 {
 	// RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "/marker_visible callback");
     capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
@@ -287,7 +295,7 @@ void AprilTagNode::marker_visible_callback()
     }
 }
 
-void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
+void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
     // camera intrinsics for rectified images
@@ -354,7 +362,6 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
 
         // tf from base_link to marker_dummy
         geometry_msgs::msg::TransformStamped stampedTransform_base_link_to_marker_dummy;
-        ss_child << "april" << det->family->name << ":" << det->id << "_dummy";
         stampedTransform_base_link_to_marker_dummy.header.frame_id = "base_link";
         stampedTransform_base_link_to_marker_dummy.header.stamp = msg_img->header.stamp;
         stampedTransform_base_link_to_marker_dummy.child_frame_id = ss_child.str();
@@ -396,7 +403,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
 }
 
 rcl_interfaces::msg::SetParametersResult
-AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
+CalibrationNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
 {
     rcl_interfaces::msg::SetParametersResult result;
 
@@ -422,7 +429,7 @@ AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
     return result;
 }
 
-bool AprilTagNode::getTransform(
+bool CalibrationNode::getTransform(
 	const std::string & refFrame, const std::string & childFrame,
 	geometry_msgs::msg::TransformStamped & transform)
 {
