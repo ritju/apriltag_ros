@@ -317,7 +317,7 @@ void CalibrationNode::onCameraInfo(const sensor_msgs::msg::CameraInfo::SharedPtr
 
 void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img)
 {
-    RCLCPP_INFO(get_logger(), "*******************************************");
+    // RCLCPP_INFO(get_logger(), "*******************************************");
     // camera intrinsics for rectified images
     if (!camera_info_received)
     {
@@ -379,7 +379,7 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
             RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "id: %d, calibration_id: %d, ignore ...", det->id, calibration_id);
             return;
         }
-        RCLCPP_INFO(get_logger(), "id: %d", det->id);
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "id: %d", det->id);
 
         // tf from real to dummy
         geometry_msgs::msg::TransformStamped stampedTransform_real_to_dummy;
