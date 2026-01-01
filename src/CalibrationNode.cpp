@@ -96,12 +96,17 @@ private:
     std::function<void(apriltag_family_t*)> tf_destructor;
 
     const image_transport::CameraSubscriber sub_cam;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub;
     const rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
     tf2_ros::TransformBroadcaster tf_broadcaster;
 
     pose_estimation_f estimate_pose = nullptr;
 
-    void onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img, const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci);
+    void onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img);
+    void onCameraInfo(const sensor_msgs::msg::CameraInfo::SharedPtr msg_ci);
+
+    void print_tf(geometry_msgs::msg::TransformStamped tf_stamped, const std::string& str);
 
     rcl_interfaces::msg::SetParametersResult onParameter(const std::vector<rclcpp::Parameter>& parameters);
 
@@ -131,6 +136,9 @@ private:
     bool marker_visible_pub = false;
 
     void marker_visible_callback();
+
+    bool camera_info_received;
+    sensor_msgs::msg::CameraInfo::SharedPtr msg_ci;
 };
 
 RCLCPP_COMPONENTS_REGISTER_NODE(CalibrationNode)
@@ -141,13 +149,6 @@ CalibrationNode::CalibrationNode(const rclcpp::NodeOptions& options)
     // parameter
     cb_parameter(add_on_set_parameters_callback(std::bind(&CalibrationNode::onParameter, this, std::placeholders::_1))),
     td(apriltag_detector_create()),
-    // topics
-    sub_cam(image_transport::create_camera_subscription(
-        this,
-        this->get_node_topics_interface()->resolve_topic_name("image_rect"),
-        std::bind(&CalibrationNode::onCamera, this, std::placeholders::_1, std::placeholders::_2),
-        declare_parameter("image_transport", "raw", descr({}, true)),
-        rmw_qos_profile_sensor_data)),
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
@@ -194,6 +195,9 @@ CalibrationNode::CalibrationNode(const rclcpp::NodeOptions& options)
     RCLCPP_INFO(get_logger(), "marker_roll: %.2f", marker_roll);
     RCLCPP_INFO(get_logger(), "marker_pitch: %.2f", marker_pitch);
     RCLCPP_INFO(get_logger(), "marker_yaw: %.2f", marker_yaw);
+
+    image_sub = this->create_subscription<sensor_msgs::msg::Image>("/camera2/color/image_raw", rclcpp::QoS(1).best_effort(), std::bind(&CalibrationNode::onCamera, this, std::placeholders::_1));
+    camera_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>("/camera2/color/camera_info", rclcpp::QoS(1).best_effort(), std::bind(&CalibrationNode::onCameraInfo, this, std::placeholders::_1));
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0/94:C9:60:43:BE:07"});
     // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
@@ -295,10 +299,21 @@ void CalibrationNode::marker_visible_callback()
     }
 }
 
-void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
-                            const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
+void CalibrationNode::onCameraInfo(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
+    msg_ci = msg;
+    camera_info_received = true;
+    camera_info_sub.reset();
+}
+
+void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img)
+{
+    RCLCPP_INFO(get_logger(), "*******************************************");
     // camera intrinsics for rectified images
+    if (!camera_info_received)
+    {
+        return;
+    }
     const std::array<double, 4> intrinsics = {msg_ci->p.data()[0], msg_ci->p.data()[5], msg_ci->p.data()[2], msg_ci->p.data()[6]};
 
     // convert to 8bit monochrome image
@@ -356,16 +371,18 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         ss_parent << "april" << det->family->name << ":" << det->id;
         ss_child << "april" << det->family->name << ":" << det->id << "_dummy";
         stampedTransform_real_to_dummy.header.frame_id = ss_parent.str();
+        // stampedTransform_real_to_dummy.header.frame_id = "real";
         stampedTransform_real_to_dummy.header.stamp = msg_img->header.stamp;
         stampedTransform_real_to_dummy.child_frame_id = ss_child.str();
+        // stampedTransform_real_to_dummy.child_frame_id = "dummy";
         tf2::toMsg(tf_real_to_dummy, stampedTransform_real_to_dummy.transform);
 
-        // tf from base_link to marker_dummy
-        geometry_msgs::msg::TransformStamped stampedTransform_base_link_to_marker_dummy;
-        stampedTransform_base_link_to_marker_dummy.header.frame_id = "base_link";
-        stampedTransform_base_link_to_marker_dummy.header.stamp = msg_img->header.stamp;
-        stampedTransform_base_link_to_marker_dummy.child_frame_id = ss_child.str();
-        tf2::toMsg(tf_base_link_to_marker_dummy, stampedTransform_base_link_to_marker_dummy.transform);
+        // tf from marker_dummy to  base_link
+        geometry_msgs::msg::TransformStamped stampedTransform_marker_dummy_to_base_link;
+        stampedTransform_marker_dummy_to_base_link.header.frame_id = ss_child.str();
+        stampedTransform_marker_dummy_to_base_link.header.stamp = msg_img->header.stamp;
+        stampedTransform_marker_dummy_to_base_link.child_frame_id = "base_link";
+        tf2::toMsg(tf_base_link_to_marker_dummy.inverse(), stampedTransform_marker_dummy_to_base_link.transform);
 
         // 3D orientation and position
         geometry_msgs::msg::TransformStamped tf;
@@ -378,8 +395,13 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         }
 
         tfs.push_back(tf); // camera=>marker
-        tfs.push_back(stampedTransform_real_to_dummy);  // marker=>marker_dummy
-        tfs.push_back(stampedTransform_base_link_to_marker_dummy); // base_link=>marker_dumy
+        print_tf(tf, "camera => marker");
+
+        // tfs.push_back(stampedTransform_real_to_dummy);  // marker=>marker_dummy
+        // print_tf(stampedTransform_real_to_dummy, "marker => marker_dummy");
+
+        // tfs.push_back(stampedTransform_marker_dummy_to_base_link); // marker_dumy=>base_link
+        // print_tf(stampedTransform_marker_dummy_to_base_link, " marker_dummy => base_link");
 
         tf2::Transform tf_camera_to_marker;
         tf2::fromMsg(tf.transform, tf_camera_to_marker);
@@ -392,14 +414,33 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         auto rotation = tf_base_link_to_camera.getRotation();
         tf2::Matrix3x3 mat(rotation);
         mat.getRPY(camera_roll, camera_pitch, camera_yaw);
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "translation: (%.2f, %.2f, %.2f)", camera_translation_x, camera_translation_y, camera_translation_z);
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "rotation   : (%.2f, %.2f, %.2f)", camera_roll, camera_pitch, camera_yaw);
+        // RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "--------------------------------------");
+        // RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "translation: (%.2f, %.2f, %.2f)", camera_translation_x, camera_translation_y, camera_translation_z);
+        // RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "rotation   : (%.2f, %.2f, %.2f)", camera_roll, camera_pitch, camera_yaw);
     }
 
     pub_detections->publish(msg_detections);
     tf_broadcaster.sendTransform(tfs);
 
     // apriltag_detections_destroy(&detections);
+}
+
+void CalibrationNode::print_tf(geometry_msgs::msg::TransformStamped tf_stamped, const std::string& str)
+{
+    RCLCPP_INFO(get_logger(), "================ %s ================", str.c_str());
+    tf2::Transform tf;
+    tf2::fromMsg(tf_stamped.transform, tf);
+    double x,y,z,roll,pitch,yaw;
+    x = tf.getOrigin().getX();
+    y = tf.getOrigin().getY();
+    z = tf.getOrigin().getZ();
+    auto q = tf.getRotation();
+    tf2::Matrix3x3 m(q);
+    m.getRPY(roll, pitch, yaw);
+    RCLCPP_INFO(get_logger(), "x: %.2f, y: %.2f, z: %.2f", x, y, z);
+    RCLCPP_INFO(get_logger(), "roll: %.2f, pitch: %.2f, yaw: %.2f", roll, pitch, yaw);
+    RCLCPP_INFO(get_logger(), "parent frame: %s", tf_stamped.header.frame_id.c_str());
+    RCLCPP_INFO(get_logger(), "child  frame: %s", tf_stamped.child_frame_id.c_str());
 }
 
 rcl_interfaces::msg::SetParametersResult
