@@ -93,6 +93,9 @@ private:
     double camera_translation_x, camera_translation_y, camera_translation_z;
     double camera_roll, camera_pitch, camera_yaw;
 
+    std::string image_topic, camera_info_topic;
+    int calibration_id;
+
     std::function<void(apriltag_family_t*)> tf_destructor;
 
     const image_transport::CameraSubscriber sub_cam;
@@ -188,6 +191,9 @@ CalibrationNode::CalibrationNode(const rclcpp::NodeOptions& options)
     marker_roll = declare_parameter("marker_roll", 0.0, descr("default marker_roll", true));
     marker_pitch = declare_parameter("marker_pitch", 0.0, descr("default marker_pitch", true));
     marker_yaw = declare_parameter("marker_yaw", 0.0, descr("default marker_yaw", true));
+    image_topic = declare_parameter("image_topic", "/camera2/color/image_raw", descr("topic of image", true));
+    camera_info_topic = declare_parameter("camera_info_topic", "/camera2/color/camera_info", descr("topic of camera info", true));
+    calibration_id = declare_parameter("calibration_id", 0, descr("id of calibration marker", true));
 
     RCLCPP_INFO(get_logger(), "marker_translation_x: %.2f", marker_translation_x);
     RCLCPP_INFO(get_logger(), "marker_translation_y: %.2f", marker_translation_y);
@@ -195,9 +201,12 @@ CalibrationNode::CalibrationNode(const rclcpp::NodeOptions& options)
     RCLCPP_INFO(get_logger(), "marker_roll: %.2f", marker_roll);
     RCLCPP_INFO(get_logger(), "marker_pitch: %.2f", marker_pitch);
     RCLCPP_INFO(get_logger(), "marker_yaw: %.2f", marker_yaw);
+    RCLCPP_INFO(get_logger(), "image_topic: %s", image_topic.c_str());
+    RCLCPP_INFO(get_logger(), "camera_info_topic: %s", camera_info_topic.c_str());
+    RCLCPP_INFO(get_logger(), "calibration_id: %d", calibration_id);
 
-    image_sub = this->create_subscription<sensor_msgs::msg::Image>("/camera2/color/image_raw", rclcpp::QoS(1).best_effort(), std::bind(&CalibrationNode::onCamera, this, std::placeholders::_1));
-    camera_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>("/camera2/color/camera_info", rclcpp::QoS(1).best_effort(), std::bind(&CalibrationNode::onCameraInfo, this, std::placeholders::_1));
+    image_sub = this->create_subscription<sensor_msgs::msg::Image>(image_topic, rclcpp::QoS(1).best_effort(), std::bind(&CalibrationNode::onCamera, this, std::placeholders::_1));
+    camera_info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic, rclcpp::QoS(1).best_effort(), std::bind(&CalibrationNode::onCameraInfo, this, std::placeholders::_1));
 
     this->get_parameter_or<std::vector<std::string>>("marker_id_and_bluetooth_mac_vec", marker_id_and_bluetooth_mac_vector, {"0/94:C9:60:43:BE:07"});
     // RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector.size(): %ld", marker_id_and_bluetooth_mac_vector.size());
@@ -365,11 +374,18 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         std::memcpy(msg_detection.homography.data(), det->H->data, sizeof(double) * 9);
         msg_detections.detections.push_back(msg_detection);
 
+        if (det->id != calibration_id)
+        {
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "id: %d, calibration_id: %d, ignore ...", det->id, calibration_id);
+            return;
+        }
+        RCLCPP_INFO(get_logger(), "id: %d", det->id);
+
         // tf from real to dummy
         geometry_msgs::msg::TransformStamped stampedTransform_real_to_dummy;
         std::stringstream ss_parent, ss_child;
-        ss_parent << "april" << det->family->name << ":" << det->id;
-        ss_child << "april" << det->family->name << ":" << det->id << "_dummy";
+        ss_parent << "april_" << det->family->name << ":" << det->id;
+        ss_child << "april_" << det->family->name << ":" << det->id << "_dummy";
         stampedTransform_real_to_dummy.header.frame_id = ss_parent.str();
         // stampedTransform_real_to_dummy.header.frame_id = "real";
         stampedTransform_real_to_dummy.header.stamp = msg_img->header.stamp;
@@ -387,8 +403,9 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         // 3D orientation and position
         geometry_msgs::msg::TransformStamped tf;
         tf.header = msg_img->header;
+        tf.header.frame_id = "camera";
         // set child frame name by generic tag name or configured tag name
-        tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : "april" + std::string(det->family->name) + ":" + std::to_string(det->id);
+        tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : "april_" + std::string(det->family->name) + ":" + std::to_string(det->id);
         const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
         if(estimate_pose != nullptr) {
             tf.transform = estimate_pose(det, intrinsics, size, shared_from_this());
@@ -397,11 +414,11 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         tfs.push_back(tf); // camera=>marker
         print_tf(tf, "camera => marker");
 
-        // tfs.push_back(stampedTransform_real_to_dummy);  // marker=>marker_dummy
-        // print_tf(stampedTransform_real_to_dummy, "marker => marker_dummy");
+        tfs.push_back(stampedTransform_real_to_dummy);  // marker=>marker_dummy
+        print_tf(stampedTransform_real_to_dummy, "marker => marker_dummy");
 
-        // tfs.push_back(stampedTransform_marker_dummy_to_base_link); // marker_dumy=>base_link
-        // print_tf(stampedTransform_marker_dummy_to_base_link, " marker_dummy => base_link");
+        tfs.push_back(stampedTransform_marker_dummy_to_base_link); // marker_dumy=>base_link
+        print_tf(stampedTransform_marker_dummy_to_base_link, " marker_dummy => base_link");
 
         tf2::Transform tf_camera_to_marker;
         tf2::fromMsg(tf.transform, tf_camera_to_marker);
