@@ -431,9 +431,9 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
         auto rotation = tf_base_link_to_camera.getRotation();
         tf2::Matrix3x3 mat(rotation);
         mat.getRPY(camera_roll, camera_pitch, camera_yaw);
-        // RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "--------------------------------------");
-        // RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "translation: (%.2f, %.2f, %.2f)", camera_translation_x, camera_translation_y, camera_translation_z);
-        // RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "rotation   : (%.2f, %.2f, %.2f)", camera_roll, camera_pitch, camera_yaw);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "--------------------------------------");
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "translation: (%.2f, %.2f, %.2f)", camera_translation_x, camera_translation_y, camera_translation_z);
+        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "rotation   : (%.2f, %.2f, %.2f)", camera_roll, camera_pitch, camera_yaw);
     }
 
     pub_detections->publish(msg_detections);
@@ -444,7 +444,7 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
 
 void CalibrationNode::print_tf(geometry_msgs::msg::TransformStamped tf_stamped, const std::string& str)
 {
-    RCLCPP_INFO(get_logger(), "================ %s ================", str.c_str());
+    RCLCPP_DEBUG(get_logger(), "================ %s ================", str.c_str());
     tf2::Transform tf;
     tf2::fromMsg(tf_stamped.transform, tf);
     double x,y,z,roll,pitch,yaw;
@@ -454,10 +454,10 @@ void CalibrationNode::print_tf(geometry_msgs::msg::TransformStamped tf_stamped, 
     auto q = tf.getRotation();
     tf2::Matrix3x3 m(q);
     m.getRPY(roll, pitch, yaw);
-    RCLCPP_INFO(get_logger(), "x: %.2f, y: %.2f, z: %.2f", x, y, z);
-    RCLCPP_INFO(get_logger(), "roll: %.2f, pitch: %.2f, yaw: %.2f", roll, pitch, yaw);
-    RCLCPP_INFO(get_logger(), "parent frame: %s", tf_stamped.header.frame_id.c_str());
-    RCLCPP_INFO(get_logger(), "child  frame: %s", tf_stamped.child_frame_id.c_str());
+    RCLCPP_DEBUG(get_logger(), "x: %.2f, y: %.2f, z: %.2f", x, y, z);
+    RCLCPP_DEBUG(get_logger(), "roll: %.2f, pitch: %.2f, yaw: %.2f", roll, pitch, yaw);
+    RCLCPP_DEBUG(get_logger(), "parent frame: %s", tf_stamped.header.frame_id.c_str());
+    RCLCPP_DEBUG(get_logger(), "child  frame: %s", tf_stamped.child_frame_id.c_str());
 }
 
 rcl_interfaces::msg::SetParametersResult
