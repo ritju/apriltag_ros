@@ -422,7 +422,15 @@ void CalibrationNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& ms
 
         tf2::Transform tf_camera_to_marker;
         tf2::fromMsg(tf.transform, tf_camera_to_marker);
-        tf_base_link_to_camera = tf_base_link_to_marker_dummy * tf_real_to_dummy.inverse() * tf_camera_to_marker.inverse();
+        
+        tf2::Transform tf_camera_depth_to_color;
+        tf_camera_depth_to_color.setIdentity();
+        tf_camera_depth_to_color.setOrigin(tf2::Vector3(0.0, 0.0, 0.0));
+        tf2::Quaternion q_d2c;
+        q_d2c.setRPY(1.57, -1.57, 0.0);
+        tf_camera_depth_to_color.setRotation(q_d2c);
+
+        tf_base_link_to_camera = tf_base_link_to_marker_dummy * tf_real_to_dummy.inverse() * tf_camera_to_marker.inverse() * tf_camera_depth_to_color;
         
         auto translation = tf_base_link_to_camera.getOrigin();
         camera_translation_x = translation.getX();
