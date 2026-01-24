@@ -372,8 +372,8 @@ void Cam2CamNode::onSensorDataReceived(const ImageT::ConstSharedPtr& imgRefMsg, 
     tf2::Matrix3x3 mat(rotation);
     mat.getRPY(rotation_roll, rotation_pitch, rotation_yaw);
     RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "-----------------------------------------------");
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin (x,y,z): (%f, %f, %f)", translation_x, translation_y, translation_z);
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation rpy: (%f, %f, %f)", rotation_roll, rotation_pitch, rotation_yaw);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin (x,y,z): (%f %f %f)", translation_x, translation_y, translation_z);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation rpy: (%f %f %f)", rotation_roll, rotation_pitch, rotation_yaw);
 }
 
 void Cam2CamNode::timer_camera_info_ref_callback()
