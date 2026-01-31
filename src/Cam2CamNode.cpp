@@ -276,7 +276,7 @@ void Cam2CamNode::printTransform(const std::string& name, const tf2::Transform& 
     tf2::Matrix3x3 mat(rotation);
     double roll, pitch, yaw;
     mat.getRPY(roll, pitch, yaw);
-    RCLCPP_DEBUG(get_logger(), "%s pos=(%.3f, %.3f, %.3f) rpy=(%.3f, %.3f, %.3f)",
+    RCLCPP_DEBUG(get_logger(), "%s pos=(%f, %f, %f) rpy=(%f, %f, %f)",
                 name.c_str(), origin.x(), origin.y(), origin.z(),
                 roll, pitch, yaw);
 }
