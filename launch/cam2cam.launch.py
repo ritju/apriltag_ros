@@ -37,7 +37,8 @@ def launch_setup(context, *args, **kwargs):
         name='cam2cam_node',
         namespace='',
         output='screen',
-        parameters=[apriltag_node_params_file, apriltag_ros_extra_params]
+        parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
+        arguments=['--ros-args', '--log-level', ['cam2cam_node:=', LaunchConfiguration("log_level")]],
     )
 
     return [cam2cam_node]
@@ -55,6 +56,7 @@ def generate_launch_description():
     calibration_id_arg = DeclareLaunchArgument("calibration_id", default_value="0", description="april tag id")
     sync_size_arg = DeclareLaunchArgument("sync_size", default_value="2", description="sync size")
     target_camera_type_arg =  DeclareLaunchArgument("target_camera_type", default_value="rgb", description="type of target camera")
+    log_level_arg =  DeclareLaunchArgument("log_level", default_value="info", description="log level of this node")
 
     ld.add_action(size_arg)
     ld.add_action(image_ref_topic_arg)
@@ -65,6 +67,7 @@ def generate_launch_description():
     ld.add_action(calibration_id_arg) 
     ld.add_action(sync_size_arg) 
     ld.add_action(target_camera_type_arg) 
+    ld.add_action(log_level_arg) 
 
     ld.add_action(OpaqueFunction(function=launch_setup))
 
