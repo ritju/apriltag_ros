@@ -99,9 +99,10 @@ private:
     std::string base_frame_id;
     int calibration_id;
     int sync_size;
+    std::string target_camera_type;
 
-    tf2::Transform tf_color2depth;
-    void initializeColorToDepth();
+    tf2::Transform tf_camera_link_to_color_optical;
+    void initializeCameraLinkToColorOptical();
     
     // Subscriber to imageRef topic
     image_transport::SubscriberFilter imageRefSubsc_;
@@ -217,6 +218,7 @@ Cam2CamNode::Cam2CamNode(const rclcpp::NodeOptions& options)
     calibration_id = declare_parameter("calibration_id", 0, descr("id of calibration marker", true));
     base_frame_id = declare_parameter("base_frame_id", "base_link", descr("base_frame id", true));
     sync_size = declare_parameter("sync_size", 5, descr("sync_size", true));
+    target_camera_type = declare_parameter("target_camera_type", "rgb", descr("type of target camera", true));
 
 
     RCLCPP_INFO(get_logger(), "image_ref_topic           : %s", imageRefTopic.c_str());
@@ -227,6 +229,7 @@ Cam2CamNode::Cam2CamNode(const rclcpp::NodeOptions& options)
     RCLCPP_INFO(get_logger(), "apriltag marker size      : %.2f m", tag_edge_size);
     RCLCPP_INFO(get_logger(), "base_frame_id             : %s", base_frame_id.c_str());
     RCLCPP_INFO(get_logger(), "sync_size                 : %d", sync_size);
+    RCLCPP_INFO(get_logger(), "target_camera_type        : %s", target_camera_type.c_str());
 
     if(!frames.empty()) {
         if(ids.size() != frames.size()) {
@@ -256,7 +259,7 @@ Cam2CamNode::Cam2CamNode(const rclcpp::NodeOptions& options)
     timer_camera_info_ref_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&Cam2CamNode::timer_camera_info_ref_callback, this));
     timer_camera_info_source_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&Cam2CamNode::timer_camera_info_source_callback, this)); 
 
-    initializeColorToDepth();
+    initializeCameraLinkToColorOptical();
     initializeSubscribers();   
 }
 
@@ -289,13 +292,26 @@ geometry_msgs::msg::TransformStamped Cam2CamNode::generateTFStamped(const std::s
     
 }
 
-void Cam2CamNode::initializeColorToDepth()
+void Cam2CamNode::initializeCameraLinkToColorOptical()
 {
-    tf_color2depth.setIdentity();
-    tf_color2depth.setOrigin(tf2::Vector3(0.0, 0.0, 0.0));
-    tf2::Quaternion q;
-    q.setRPY(M_PI / 2.0, -M_PI / 2.0, 0.0);
-    tf_color2depth.setRotation(q);
+   tf_camera_link_to_color_optical.setIdentity();
+   if (target_camera_type == "rgb")
+    {        
+        RCLCPP_INFO(get_logger(), "target_camera_tpye: %s", target_camera_type.c_str());
+        tf_camera_link_to_color_optical.setOrigin(tf2::Vector3(0.0, 0.0, 0.0));
+        tf2::Quaternion q;
+        q.setRPY(M_PI / 2.0, -M_PI / 2.0, 0.0);
+        tf_camera_link_to_color_optical.setRotation(q);
+    }
+    else if (target_camera_type == "depth")
+    {
+        RCLCPP_INFO(get_logger(), "target_camera_tpye: %s", target_camera_type.c_str());
+        tf_camera_link_to_color_optical.setOrigin(tf2::Vector3(-0.014, 0.000, -0.002));
+        tf2::Quaternion q;
+        q.setRPY(M_PI / 2.0, -M_PI / 2.0, 0.0);
+        tf_camera_link_to_color_optical.setRotation(q);
+    }
+    
 }
 
 bool Cam2CamNode::initializeSubscribers()
@@ -352,10 +368,10 @@ void Cam2CamNode::onSensorDataReceived(const ImageT::ConstSharedPtr& imgRefMsg, 
     printTransform("tf_marker2ref             :", tf_marker2ref);
     printTransform("tf_marker2source          :", tf_marker2source);
     printTransform("tf_marker2source.inverse():", tf_marker2source.inverse());
-    printTransform("tf_color2depth            :", tf_color2depth);
+    printTransform("tf_camera_link_to_color_optical            :", tf_camera_link_to_color_optical);
     printTransform("tf_boader2base            :", tf_ref2baseframe * tf_marker2ref);
     printTransform("tf_source2base            :", tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse());
-    printTransform("tf_source_dummy2base      :", tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse() * tf_color2depth);
+    printTransform("tf_source_dummy2base      :", tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse() * tf_camera_link_to_color_optical);
 
     // pub tf
     std::vector<geometry_msgs::msg::TransformStamped> tfs;
@@ -363,7 +379,7 @@ void Cam2CamNode::onSensorDataReceived(const ImageT::ConstSharedPtr& imgRefMsg, 
     tfs.push_back(generateTFStamped("boader", imgSourceMsg->header.frame_id + "_dummy", tf_marker2source.inverse(), imgRefMsg->header.stamp));
     tf_broadcaster.sendTransform(tfs);
 
-    auto tf_source2base = tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse() * tf_color2depth;
+    auto tf_source2base = tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse() * tf_camera_link_to_color_optical;
     auto origin = tf_source2base.getOrigin();
     auto rotation = tf_source2base.getRotation();
     translation_x = origin.getX();

@@ -20,7 +20,8 @@ def launch_setup(context, *args, **kwargs):
         'camera_info_source_topic': LaunchConfiguration('camera_info_source_topic'),
         'calibration_id': LaunchConfiguration('calibration_id'),
         'base_frame_id': LaunchConfiguration('base_frame_id'),
-        "sync_size": LaunchConfiguration('sync_size'),  
+        "sync_size": LaunchConfiguration('sync_size'), 
+        'target_camera_type': LaunchConfiguration('target_camera_type'),
     }    
 
     # get pkg path
@@ -53,6 +54,7 @@ def generate_launch_description():
     base_frame_id_arg = DeclareLaunchArgument("base_frame_id", default_value="base_link", description="base frame id")
     calibration_id_arg = DeclareLaunchArgument("calibration_id", default_value="0", description="april tag id")
     sync_size_arg = DeclareLaunchArgument("sync_size", default_value="2", description="sync size")
+    target_camera_type_arg =  DeclareLaunchArgument("target_camera_type", default_value="rgb", description="type of target camera")
 
     ld.add_action(size_arg)
     ld.add_action(image_ref_topic_arg)
@@ -62,6 +64,7 @@ def generate_launch_description():
     ld.add_action(base_frame_id_arg)
     ld.add_action(calibration_id_arg) 
     ld.add_action(sync_size_arg) 
+    ld.add_action(target_camera_type_arg) 
 
     ld.add_action(OpaqueFunction(function=launch_setup))
 
