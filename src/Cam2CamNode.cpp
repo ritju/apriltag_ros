@@ -117,6 +117,11 @@ private:
     tf2::Transform tf_marker2source;
     double translation_x, translation_y, translation_z;
     double rotation_roll, rotation_pitch, rotation_yaw;
+    int data_number = 0;
+    double translation_x_mean = 0.0, translation_y_mean = 0.0, translation_z_mean = 0.0;
+    double rotation_roll_mean = 0.0, rotation_pitch_mean = 0.0, rotation_yaw_mean = 0.0;
+
+    double calculate_mean(const double& mean_history, int& number, double new_value);
 
     void onSensorDataReceived(const ImageT::ConstSharedPtr& imgRefMsg, const ImageT::ConstSharedPtr& imgSourceMsg);
 
@@ -373,12 +378,6 @@ void Cam2CamNode::onSensorDataReceived(const ImageT::ConstSharedPtr& imgRefMsg, 
     printTransform("tf_source2base            :", tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse());
     printTransform("tf_source_dummy2base      :", tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse() * tf_camera_link_to_color_optical);
 
-    // pub tf
-    std::vector<geometry_msgs::msg::TransformStamped> tfs;
-    tfs.push_back(generateTFStamped(imgRefMsg->header.frame_id, "boader", tf_marker2ref, imgRefMsg->header.stamp));
-    tfs.push_back(generateTFStamped("boader", imgSourceMsg->header.frame_id + "_dummy", tf_marker2source.inverse(), imgRefMsg->header.stamp));
-    tf_broadcaster.sendTransform(tfs);
-
     auto tf_source2base = tf_ref2baseframe * tf_marker2ref * tf_marker2source.inverse() * tf_camera_link_to_color_optical;
     auto origin = tf_source2base.getOrigin();
     auto rotation = tf_source2base.getRotation();
@@ -388,8 +387,42 @@ void Cam2CamNode::onSensorDataReceived(const ImageT::ConstSharedPtr& imgRefMsg, 
     tf2::Matrix3x3 mat(rotation);
     mat.getRPY(rotation_roll, rotation_pitch, rotation_yaw);
     RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "-----------------------------------------------");
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin (x,y,z): (%f %f %f)", translation_x, translation_y, translation_z);
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation rpy: (%f %f %f)", rotation_roll, rotation_pitch, rotation_yaw);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin      (x,y,z): (%f %f %f)", translation_x, translation_y, translation_z);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation      rpy: (%f %f %f)", rotation_roll, rotation_pitch, rotation_yaw);
+    
+    translation_x_mean = calculate_mean(translation_x_mean, data_number, translation_x);
+    translation_y_mean = calculate_mean(translation_y_mean, data_number, translation_y);
+    translation_z_mean = calculate_mean(translation_z_mean, data_number, translation_z);
+    rotation_roll_mean = calculate_mean(rotation_roll_mean, data_number, rotation_roll);
+    rotation_pitch_mean = calculate_mean(rotation_pitch_mean, data_number, rotation_pitch);
+    rotation_yaw_mean = calculate_mean(rotation_yaw_mean, data_number, rotation_yaw);
+    data_number++;
+
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "***********************************************");
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin_mean (x,y,z): (%f %f %f)", translation_x_mean, translation_y_mean, translation_z_mean);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation_mean rpy: (%f %f %f)", rotation_roll_mean, rotation_pitch_mean, rotation_yaw_mean);
+    
+    tf2::Transform tf_source2base_fake;
+    tf_source2base_fake.setIdentity();
+    tf2::Quaternion q_source2base_fake;
+    q_source2base_fake.setRPY(rotation_roll_mean, rotation_pitch_mean, rotation_yaw_mean);
+    tf_source2base_fake.setOrigin(tf2::Vector3(translation_x_mean, translation_y_mean, translation_z_mean));
+    tf_source2base_fake.setRotation(q_source2base_fake);
+
+    // pub tf
+    std::vector<geometry_msgs::msg::TransformStamped> tfs;
+    tfs.push_back(generateTFStamped(imgRefMsg->header.frame_id, "boader", tf_marker2ref, imgRefMsg->header.stamp));
+    tfs.push_back(generateTFStamped("boader", imgSourceMsg->header.frame_id + "_dummy", tf_marker2source.inverse(), imgRefMsg->header.stamp));
+    tfs.push_back(generateTFStamped(base_frame_id.c_str(), imgSourceMsg->header.frame_id + "_fake", tf_source2base_fake, imgRefMsg->header.stamp));
+    tf_broadcaster.sendTransform(tfs);
+}
+
+double Cam2CamNode::calculate_mean(const double& mean_history, int& number, double new_value)
+{
+    double mean = 0.0;
+    double sum = mean_history * number + new_value;
+    mean = sum / (number + 1);
+    return mean;
 }
 
 void Cam2CamNode::timer_camera_info_ref_callback()
