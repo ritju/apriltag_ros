@@ -25,18 +25,17 @@ def launch_setup(context, *args, **kwargs):
     # get params file
     apriltag_node_params_file = os.path.join(apriltag_pkg_path, 'cfg', 'tags_36h11.yaml')
 
-    # cam2cam node
-    cam2cam_node = Node(
-        executable='cam2cam_node',
+    # apriltag_single_node node
+    apriltag_single_node = Node(
+        executable='apriltag_single_node',
         package='apriltag_ros',
-        name='cam2cam_node',
+        name='apriltag_single_node',
         namespace='',
         output='screen',
         parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
-        arguments=['--ros-args', '--log-level', ['cam2cam_node:=', LaunchConfiguration("log_level")]],
     )
 
-    return [cam2cam_node]
+    return [apriltag_single_node]
 
 def generate_launch_description():
     
