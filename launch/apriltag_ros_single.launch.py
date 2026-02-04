@@ -16,7 +16,6 @@ def launch_setup(context, *args, **kwargs):
         'image_topic': LaunchConfiguration('image_topic'),
         'camera_info_topic': LaunchConfiguration('camera_info_topic'),
         'calibration_id': LaunchConfiguration('calibration_id'),
-        'base_frame_id': LaunchConfiguration('base_frame_id'),
         'boader_height': LaunchConfiguration('boader_height'),
     }    
 
@@ -53,7 +52,6 @@ def generate_launch_description():
     ld.add_action(size_arg)
     ld.add_action(image_topic_arg)
     ld.add_action(camera_info_topic_arg)
-    ld.add_action(base_frame_id_arg)
     ld.add_action(calibration_id_arg) 
     ld.add_action(boader_height_arg) 
     ld.add_action(log_level_arg) 
