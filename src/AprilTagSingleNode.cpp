@@ -378,7 +378,7 @@ void AprilTagSingleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             {
                 tf_msg = estimate_pose(det, intrinsics, size, shared_from_this());
                 tf2::fromMsg(tf_msg, tf_marker2camera);
-                auto tf_output = tf_marker2camera.inverse();
+                auto tf_output = tf_marker2camera.inverse() * tf_camera_link_to_color_optical;
                 auto origin = tf_output.getOrigin();
                 auto rotation = tf_output.getRotation();
                 translation_x = origin.getX();
