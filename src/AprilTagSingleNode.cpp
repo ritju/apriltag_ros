@@ -390,7 +390,7 @@ void AprilTagSingleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
                 RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "-----------------------------------------------");
                 RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin (x,y,z) : (%f %f %f)", translation_x, translation_y, translation_z);
                 RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation rpy   : (%f %f %f)", rotation_roll, rotation_pitch, rotation_yaw);
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "camera height  : %f", translation_z - boader_height);
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "camera height  : %f", translation_z + boader_height);
                 return;
             }
         }
