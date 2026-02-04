@@ -93,7 +93,6 @@ private:
     //  parameters specified by launch file
     std::string imageTopic;
     std::string cameraInfoTopic;
-    std::string base_frame_id;
     int calibration_id;
     double boader_height;
 
@@ -198,7 +197,6 @@ AprilTagSingleNode::AprilTagSingleNode(const rclcpp::NodeOptions& options)
     imageTopic = declare_parameter("image_topic", "/rgb_camera_front/image_raw", descr("topic of image", true));
     cameraInfoTopic = declare_parameter("camera_info_topic", "/rgb_camera_front/camera_info", descr("topic of camera info", true));
     calibration_id = declare_parameter("calibration_id", 0, descr("id of calibration marker", true));
-    base_frame_id = declare_parameter("base_frame_id", "base_link", descr("base_frame id", true));
     boader_height = declare_parameter("boader_height", 0.01, descr("border_height", true));
 
     RCLCPP_INFO(get_logger(), "image_topic           : %s", imageTopic.c_str());
@@ -206,7 +204,6 @@ AprilTagSingleNode::AprilTagSingleNode(const rclcpp::NodeOptions& options)
     RCLCPP_INFO(get_logger(), "calibration_id        : %d", calibration_id);
     RCLCPP_INFO(get_logger(), "apriltag marker size  : %.2f m", tag_edge_size);
     RCLCPP_INFO(get_logger(), "board_height          : %.2f m", boader_height);
-    RCLCPP_INFO(get_logger(), "base_frame_id         : %s", base_frame_id.c_str());
 
     if(!frames.empty()) {
         if(ids.size() != frames.size()) {

@@ -45,8 +45,7 @@ def generate_launch_description():
 
     size_arg = DeclareLaunchArgument("size", default_value="0.24", description="calibration marker size")
     image_topic_arg = DeclareLaunchArgument("image_topic", default_value="/rgb_camera_front/image_raw", description="image ref topic")
-    camera_info_topic_arg = DeclareLaunchArgument("camera_info_topic", default_value="/rgb_camera_front/camera_info", description="camera_info_ref topic")    
-    base_frame_id_arg = DeclareLaunchArgument("base_frame_id", default_value="base_link", description="base frame id")
+    camera_info_topic_arg = DeclareLaunchArgument("camera_info_topic", default_value="/rgb_camera_front/camera_info", description="camera_info_ref topic")
     calibration_id_arg = DeclareLaunchArgument("calibration_id", default_value="0", description="april tag id")
     boader_height_arg = DeclareLaunchArgument('boader_height', default_value="0.01", description="height of boader") 
     log_level_arg =  DeclareLaunchArgument("log_level", default_value="info", description="log level of this node")
