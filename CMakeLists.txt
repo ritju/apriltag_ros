@@ -80,6 +80,11 @@ ament_target_dependencies(Cam2CamNode rclcpp rclcpp_components sensor_msgs april
 target_link_libraries(Cam2CamNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(Cam2CamNode PLUGIN "Cam2CamNode" EXECUTABLE "cam2cam_node")
 
+add_library(AprilTagSingleNode SHARED src/AprilTagSingleNode.cpp)
+ament_target_dependencies(AprilTagSingleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+target_link_libraries(AprilTagSingleNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
+rclcpp_components_register_node(AprilTagSingleNode PLUGIN "AprilTagSingleNode" EXECUTABLE "apriltag_single_node")
+
 add_library(AprilTagDoubleNode SHARED src/AprilTagDoubleNode.cpp)
 ament_target_dependencies(AprilTagDoubleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(AprilTagDoubleNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
@@ -87,7 +92,7 @@ rclcpp_components_register_node(AprilTagDoubleNode PLUGIN "AprilTagDoubleNode" E
 
 ament_environment_hooks(${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH})
 
-install(TARGETS AprilTagNode CalibrationNode Cam2CamNode AprilTagDoubleNode
+install(TARGETS AprilTagNode CalibrationNode Cam2CamNode AprilTagDoubleNode AprilTagSingleNode
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
