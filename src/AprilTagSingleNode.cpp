@@ -95,6 +95,7 @@ private:
     std::string cameraInfoTopic;
     int calibration_id;
     double boader_height;
+    std::string camera_type;
 
     // output tf 
     tf2::Transform tf_marker2camera;
@@ -198,12 +199,14 @@ AprilTagSingleNode::AprilTagSingleNode(const rclcpp::NodeOptions& options)
     cameraInfoTopic = declare_parameter("camera_info_topic", "/rgb_camera_front/camera_info", descr("topic of camera info", true));
     calibration_id = declare_parameter("calibration_id", 0, descr("id of calibration marker", true));
     boader_height = declare_parameter("boader_height", 0.01, descr("border_height", true));
+    camera_type = declare_parameter("camera_type", "depth", descr("camera_type", true));
 
     RCLCPP_INFO(get_logger(), "image_topic           : %s", imageTopic.c_str());
     RCLCPP_INFO(get_logger(), "camera_info_topic     : %s", cameraInfoTopic.c_str());
     RCLCPP_INFO(get_logger(), "calibration_id        : %d", calibration_id);
     RCLCPP_INFO(get_logger(), "apriltag marker size  : %.2f m", tag_edge_size);
-    RCLCPP_INFO(get_logger(), "board_height          : %.2f m", boader_height);
+    RCLCPP_INFO(get_logger(), "boader_height         : %.2f m", boader_height);
+    RCLCPP_INFO(get_logger(), "camera_type           : %s", camera_type.c_str());
 
     if(!frames.empty()) {
         if(ids.size() != frames.size()) {
@@ -389,7 +392,11 @@ void AprilTagSingleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
                 tf_msg = estimate_pose(det, intrinsics, size, shared_from_this());
                 tf2::fromMsg(tf_msg, tf_marker2camera);
-                auto tf_output = tf_marker2camera.inverse() * tf_camera_link_to_color_optical;
+                tf2::Transform tf_output = tf_marker2camera.inverse();
+                if (camera_type == "depth")
+                {
+                    tf_output = tf_output * tf_camera_link_to_color_optical;
+                }
                 auto origin = tf_output.getOrigin();
                 auto rotation = tf_output.getRotation();
                 translation_x = origin.getX();

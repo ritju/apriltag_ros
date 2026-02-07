@@ -17,6 +17,7 @@ def launch_setup(context, *args, **kwargs):
         'camera_info_topic': LaunchConfiguration('camera_info_topic'),
         'calibration_id': LaunchConfiguration('calibration_id'),
         'boader_height': LaunchConfiguration('boader_height'),
+        'camera_type': LaunchConfiguration('camera_type'),
     }    
 
     # get pkg path
@@ -47,6 +48,7 @@ def generate_launch_description():
     calibration_id_arg = DeclareLaunchArgument("calibration_id", default_value="0", description="april tag id")
     boader_height_arg = DeclareLaunchArgument('boader_height', default_value="0.01", description="height of boader") 
     log_level_arg =  DeclareLaunchArgument("log_level", default_value="info", description="log level of this node")
+    camera_type_arg = DeclareLaunchArgument('camera_type', default_value="depth", description="camera type")
 
     ld.add_action(size_arg)
     ld.add_action(image_topic_arg)
@@ -54,6 +56,7 @@ def generate_launch_description():
     ld.add_action(calibration_id_arg) 
     ld.add_action(boader_height_arg) 
     ld.add_action(log_level_arg) 
+    ld.add_action(camera_type_arg) 
 
     ld.add_action(OpaqueFunction(function=launch_setup))
 
