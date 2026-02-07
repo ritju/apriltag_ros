@@ -376,6 +376,17 @@ void AprilTagSingleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
             if(estimate_pose != nullptr) 
             {
+                geometry_msgs::msg::TransformStamped base_link_to_base_footprint;
+                if (!getTransform("base_footprint", "base_link", base_link_to_base_footprint))
+                {
+                    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "can not get tf base_link to base_footprint");
+                    return;
+                }
+                
+                tf2::Transform tf_base_link_to_base_footprint;
+                tf2::fromMsg(base_link_to_base_footprint.transform, tf_base_link_to_base_footprint);
+                double h_tmp = tf_base_link_to_base_footprint.getOrigin().getZ();
+
                 tf_msg = estimate_pose(det, intrinsics, size, shared_from_this());
                 tf2::fromMsg(tf_msg, tf_marker2camera);
                 auto tf_output = tf_marker2camera.inverse() * tf_camera_link_to_color_optical;
@@ -388,9 +399,9 @@ void AprilTagSingleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
                 mat.getRPY(rotation_roll, rotation_pitch, rotation_yaw);
 
                 RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "-----------------------------------------------");
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin (x,y,z) : (%f %f %f)", translation_x, translation_y, translation_z);
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation rpy   : (%f %f %f)", rotation_roll, rotation_pitch, rotation_yaw);
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "camera height  : %f", translation_z + boader_height);
+                // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "origin (x,y,z) : (%f %f %f)", translation_x, translation_y, translation_z);
+                // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "rotation rpy   : (%f %f %f)", rotation_roll, rotation_pitch, rotation_yaw);
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "camera height  : %f", translation_z + boader_height - h_tmp);
                 return;
             }
         }
