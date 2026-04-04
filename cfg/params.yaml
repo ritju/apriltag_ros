@@ -1,0 +1,9 @@
+
+apriltag_double_node:
+  ros__parameters:
+    pose_x_min: -0.855
+    pose_x_max: -0.10
+    pose_y_min: -0.35
+    pose_y_max: 0.35
+    yaw_min: -3.14
+    yaw_max: 3.14

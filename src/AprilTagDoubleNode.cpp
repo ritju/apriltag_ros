@@ -37,6 +37,11 @@
 #include <apriltag.h>
 #include <angles/angles.h>
 
+#include <visualization_msgs/msg/marker.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
+#include <future>
+#include <rclcpp/node_interfaces/node_topics_interface.hpp>
+
 #define IF(N, V) \
     if(assign_check(parameter, N, V)) continue;
 
@@ -122,9 +127,9 @@ private:
     rclcpp::Publisher<aruco_msgs::msg::PoseWithId>::SharedPtr pose_with_id_pub;
     rclcpp::Publisher<aruco_msgs::msg::MarkerAndMacVector>::SharedPtr id_and_mac_pub;
     rclcpp::Publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>::SharedPtr detect_status;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
 
-    rclcpp::TimerBase::SharedPtr id_mac_timer_;
-    rclcpp::TimerBase::SharedPtr marker_timer;
+    std::vector<geometry_msgs::msg::Point> rect_corners_;
 
     aruco_msgs::msg::MarkerAndMacVector msgs;
     aruco_msgs::msg::MarkerAndMac msg;
@@ -133,7 +138,6 @@ private:
     std::vector<std::string> marker_id_and_bluetooth_mac_vector;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr charger_id_sub;
 
-    zarray_t detections;
     int marker_id;
     int marker_id_correction;
     bool marker_visible_last = false;
@@ -142,7 +146,6 @@ private:
     capella_ros_service_interfaces::msg::ChargeMarkerVisible marker_detect_status;
     std::string apriltag_family_name;
 
-    void id_mac_callback();
     void charger_id_callback(std_msgs::msg::String msg);
     void marker_visible_callback();
     bool in_idRanges(std::vector<int> ids);
@@ -203,6 +206,19 @@ private:
 
     // 定时器回调：处理图像
     void processImageCallback();
+
+    void updateRectCorners();
+    void publishRectMarker();
+
+    void start_img_and_info_sub();
+    void stop_img_and_info_sub();
+
+    bool getOneImageAndInfo(
+        const std::string& image_topic,          // 实际图像话题名
+        const std::string& camera_info_topic,    // 实际相机信息话题名
+        sensor_msgs::msg::Image::ConstSharedPtr& img,
+        sensor_msgs::msg::CameraInfo::ConstSharedPtr& ci,
+        const std::chrono::seconds timeout);
 };
 
 RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagDoubleNode)
@@ -216,34 +232,6 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 {
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-
-    // 修改图像订阅回调：仅缓存图像，不直接处理
-    image_sub = image_transport::create_subscription(
-        this, "/image_rect", 
-        [this](const sensor_msgs::msg::Image::ConstSharedPtr& img) {
-            std::lock_guard<std::mutex> lock(img_mutex_);
-            last_img_ = img;
-            last_img_time_ = this->get_clock()->now();
-            // 相机信息可能尚未到达，等待即可
-            if (last_camera_info_) {
-                last_ci_ = last_camera_info_;
-            }
-            // 记录接收时间（用于超时判断）
-            last_time_camera_topic_received = this->get_clock()->now().seconds();
-        },
-        "raw", rmw_qos_profile_sensor_data
-    );
-
-    // 相机信息回调：持续更新
-    info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-        "/camera_info", rclcpp::QoS(1).best_effort(),
-        [this](const sensor_msgs::msg::CameraInfo::ConstSharedPtr& info) {
-            last_camera_info_ = info;
-            // 同时更新缓存的相机信息
-            std::lock_guard<std::mutex> lock(img_mutex_);
-            last_ci_ = info;
-        }
-    );
 
     // 参数声明（原有部分省略，保留不变）
     apriltag_family_name = declare_parameter("family", "36h11", descr("tag family", true));
@@ -269,15 +257,15 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     declare_parameter("base_link_dummy_transform_z", 0.50, descr("base_link_dummy_transform_z"));
 
     // 新增充电桩范围参数声明
-    declare_parameter("pose_x_min", -0.9);
-    declare_parameter("pose_x_max", -0.4);
-    declare_parameter("pose_y_min", -0.1);
-    declare_parameter("pose_y_max", 0.1);
-    declare_parameter("yaw_min", -0.2);
-    declare_parameter("yaw_max", 0.2);
+    declare_parameter("pose_x_min", -0.85);
+    declare_parameter("pose_x_max", -0.1);
+    declare_parameter("pose_y_min", -0.3);
+    declare_parameter("pose_y_max", 0.3);
+    declare_parameter("yaw_min", -3.14);
+    declare_parameter("yaw_max", 3.14);
 
-    this->get_parameter_or<float>("pose_x_min", pose_x_min_, -0.65);
-    this->get_parameter_or<float>("pose_x_max", pose_x_max_, -0.15);
+    this->get_parameter_or<float>("pose_x_min", pose_x_min_, -0.85);
+    this->get_parameter_or<float>("pose_x_max", pose_x_max_, -0.1);
     this->get_parameter_or<float>("pose_y_min", pose_y_min_, -0.3);
     this->get_parameter_or<float>("pose_y_max", pose_y_max_, 0.3);
     this->get_parameter_or<float>("yaw_min", yaw_min_, -3.14);
@@ -292,7 +280,7 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     this->get_parameter_or<float>("base_link_dummy_transform_y", base_link_dummy_transform_y, 0.0);
     this->get_parameter_or<float>("base_link_dummy_transform_z", base_link_dummy_transform_z, 0.50);
 
-    // 解析 marker_id_and_bluetooth_mac_vector（原有代码，省略）
+    // 解析 marker_id_and_bluetooth_mac_vector
     int id_mac_length = marker_id_and_bluetooth_mac_vector.size();
     RCLCPP_INFO(get_logger(), "marker_id_and_bluetooth_mac_vector size: %d", id_mac_length);
     for (int ids_index = 0; ids_index < id_mac_length; ids_index++)
@@ -364,42 +352,119 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
 
     pose_with_id_pub = this->create_publisher<aruco_msgs::msg::PoseWithId>("/pose_with_id", 100);
     detect_status = this->create_publisher<capella_ros_service_interfaces::msg::ChargeMarkerVisible>("marker_visible", rclcpp::QoS(1).reliable().transient_local());
-    id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", 30);
+    id_and_mac_pub = this->create_publisher<aruco_msgs::msg::MarkerAndMacVector>("/id_mac", rclcpp::QoS(1).reliable().transient_local());
+    marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("charger_range_marker", rclcpp::QoS(1).reliable().transient_local());
 
-    marker_timer = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagDoubleNode::marker_visible_callback, this));
-    id_mac_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagDoubleNode::id_mac_callback, this));
     charger_id_sub = this->create_subscription<std_msgs::msg::String>("/charger/id", rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local().reliable(),
                                                                       std::bind(&AprilTagDoubleNode::charger_id_callback, this, std::placeholders::_1));
 
     // ========== 新增：创建处理定时器（周期50ms） ==========
-    process_timer_ = this->create_wall_timer(std::chrono::milliseconds(50), std::bind(&AprilTagDoubleNode::processImageCallback, this));
+    process_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&AprilTagDoubleNode::processImageCallback, this));
 
     // ========== 新增：创建服务 ==========
     start_srv_ = this->create_service<capella_ros_service_interfaces::srv::StartDetectApriltag>(
-        "start_detect_apriltag",
-        std::bind(&AprilTagDoubleNode::startDetectApriltag, this, std::placeholders::_1, std::placeholders::_2));
+        "/start_detect_apriltag",
+        std::bind(&AprilTagDoubleNode::startDetectApriltag, this, std::placeholders::_1, std::placeholders::_2), rmw_qos_profile_services_default);
     stop_srv_ = this->create_service<capella_ros_service_interfaces::srv::StopDetectApriltag>(
-        "stop_detect_apriltag",
-        std::bind(&AprilTagDoubleNode::stopDetectApriltag, this, std::placeholders::_1, std::placeholders::_2));
+        "/stop_detect_apriltag",
+        std::bind(&AprilTagDoubleNode::stopDetectApriltag, this, std::placeholders::_1, std::placeholders::_2), rmw_qos_profile_services_default);
     status_srv_ = this->create_service<capella_ros_service_interfaces::srv::GetDetectApriltagStatus>(
-        "get_detect_apriltag_status",
-        std::bind(&AprilTagDoubleNode::getDetectApriltagStatus, this, std::placeholders::_1, std::placeholders::_2));
+        "/get_detect_apriltag_status",
+        std::bind(&AprilTagDoubleNode::getDetectApriltagStatus, this, std::placeholders::_1, std::placeholders::_2), rmw_qos_profile_services_default);
     range_srv_ = this->create_service<capella_ros_service_interfaces::srv::IsInChargerRange>(
-        "is_in_charger_range",
-        std::bind(&AprilTagDoubleNode::isInChargerRange, this, std::placeholders::_1, std::placeholders::_2));
+        "/is_in_charger_range",
+        std::bind(&AprilTagDoubleNode::isInChargerRange, this, std::placeholders::_1, std::placeholders::_2), rmw_qos_profile_services_default);
+
+    updateRectCorners();
+
+    // pub topic /marker_visible with value false for init.
+    RCLCPP_INFO(get_logger(), "pub topic /marker_visible with value false for init.");
+    marker_detect_status.marker_id = -1;
+    marker_detect_status.marker_id_correction = -1;
+    marker_detect_status.marker_visible = false;
+    detect_status->publish(marker_detect_status);
+    marker_visible_last = marker_detect_status.marker_visible;
+    
+    // pub /id_mac for init
+    id_and_mac_pub->publish(msgs);
 
     RCLCPP_INFO(get_logger(), "AprilTagDoubleNode initialized. Detection is stopped by default.");
+}
+
+void AprilTagDoubleNode::start_img_and_info_sub()
+{
+    // 修改图像订阅回调：仅缓存图像，不直接处理
+    image_sub = image_transport::create_subscription(
+        this, "/image_rect", 
+        [this](const sensor_msgs::msg::Image::ConstSharedPtr& img) {
+            std::lock_guard<std::mutex> lock(img_mutex_);
+            last_img_ = img;
+            last_img_time_ = this->get_clock()->now();
+            // 相机信息可能尚未到达，等待即可
+            if (last_camera_info_) {
+                last_ci_ = last_camera_info_;
+            }
+            // 记录接收时间（用于超时判断）
+            last_time_camera_topic_received = this->get_clock()->now().seconds();
+        },
+        "raw", rmw_qos_profile_sensor_data
+    );
+
+    // 相机信息回调：持续更新
+    info_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        "/camera_info", rclcpp::QoS(1).best_effort(),
+        [this](const sensor_msgs::msg::CameraInfo::ConstSharedPtr& info) {
+            last_camera_info_ = info;
+            // 同时更新缓存的相机信息
+            std::lock_guard<std::mutex> lock(img_mutex_);
+            last_ci_ = info;
+        }
+    );
+}
+
+void AprilTagDoubleNode::stop_img_and_info_sub()
+{
+    image_sub.shutdown();
+    info_sub.reset();
+}
+
+void AprilTagDoubleNode::updateRectCorners()
+{
+    rect_corners_.clear();
+    geometry_msgs::msg::Point p;
+    p.z = 0.0;  // 矩形位于地面上
+
+    // 四个角点顺序
+    p.x = pose_x_min_; p.y = pose_y_min_; rect_corners_.push_back(p);
+    p.x = pose_x_max_; p.y = pose_y_min_; rect_corners_.push_back(p);
+    p.x = pose_x_max_; p.y = pose_y_max_; rect_corners_.push_back(p);
+    p.x = pose_x_min_; p.y = pose_y_max_; rect_corners_.push_back(p);
+    // 闭合矩形，再添加第一个点
+    p.x = pose_x_min_; p.y = pose_y_min_; rect_corners_.push_back(p);
+}
+
+void AprilTagDoubleNode::publishRectMarker()
+{
+    visualization_msgs::msg::Marker marker;
+    marker.header.frame_id = "charger";           // 相对于 charger 坐标系
+    marker.header.stamp = this->get_clock()->now();
+    marker.ns = "charger_range";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.points = rect_corners_;
+    marker.scale.x = 0.05;                        // 线宽
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    marker.color.a = 1.0;
+    marker_pub_->publish(marker);
 }
 
 AprilTagDoubleNode::~AprilTagDoubleNode()
 {
     apriltag_detector_destroy(td);
     tf_destructor(tf);
-}
-
-void AprilTagDoubleNode::id_mac_callback()
-{
-    id_and_mac_pub->publish(msgs);
 }
 
 void AprilTagDoubleNode::charger_id_callback(std_msgs::msg::String msg)
@@ -441,40 +506,6 @@ void AprilTagDoubleNode::charger_id_callback(std_msgs::msg::String msg)
     }
 }
 
-void AprilTagDoubleNode::marker_visible_callback()
-{    
-    now_time = now().seconds();
-    if (now_time - last_time_camera_topic_received > 0.5)
-    {
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "--------------------------");
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "now_time: %f", now_time);
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "last_time_camera_topic_received: %f", last_time_camera_topic_received);
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 5000, "delta_time: %f", now_time - last_time_camera_topic_received);
-        marker_detect_status.marker_visible = false;
-        marker_detect_status.marker_id = -1;
-        marker_detect_status.marker_id_correction = -1;
-        RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 1000, "timeout, change marker_visible = false");
-    }
-    if (!marker_visible_pub)
-    {
-        RCLCPP_INFO(get_logger(), "pub topic /marker_visible first time.");
-        detect_status->publish(marker_detect_status);
-        marker_visible_pub = true;
-        marker_visible_last = marker_detect_status.marker_visible;
-    }
-    else
-    {
-        if (marker_visible_last != marker_detect_status.marker_visible)
-        {
-            RCLCPP_INFO(get_logger(), "topic /marker_visible changed from %s to %s .",
-                marker_visible_last ? "true": "false",
-                marker_detect_status.marker_visible ? "true" : "false");
-            detect_status->publish(marker_detect_status);
-            marker_visible_last = marker_detect_status.marker_visible;
-        }
-    }           
-}
-
 // ========== 新增：定时器处理回调 ==========
 void AprilTagDoubleNode::processImageCallback()
 {
@@ -514,20 +545,34 @@ void AprilTagDoubleNode::startDetectApriltag(
     const std::shared_ptr<capella_ros_service_interfaces::srv::StartDetectApriltag::Request> /*req*/,
     std::shared_ptr<capella_ros_service_interfaces::srv::StartDetectApriltag::Response> res)
 {
+    RCLCPP_INFO(get_logger(), "StartDetectApriltag called, detection enabled.");
+    start_img_and_info_sub();
     detecting_apriltag_ = true;
     res->success = true;
-    RCLCPP_INFO(get_logger(), "StartDetectApriltag called, detection enabled.");
 }
 
 void AprilTagDoubleNode::stopDetectApriltag(
     const std::shared_ptr<capella_ros_service_interfaces::srv::StopDetectApriltag::Request> /*req*/,
     std::shared_ptr<capella_ros_service_interfaces::srv::StopDetectApriltag::Response> res)
 {
+    RCLCPP_INFO(get_logger(), "StopDetectApriltag called, detection disabled.");
+    stop_img_and_info_sub();
+    RCLCPP_INFO(get_logger(), "停止检测时，重置所有计数为0");
+    frame_all = 0;
+    frame_detected =0;
+    frame_error = 0;
     detecting_apriltag_ = false;
     // 停止检测时，将范围内标志重置为 false（因为不再更新）
+    RCLCPP_INFO(get_logger(), "停止检测时，重置充电桩范围内标志为 false.");
     detecting_in_charger_range_ = false;
     res->success = true;
-    RCLCPP_INFO(get_logger(), "StopDetectApriltag called, detection disabled.");
+    // 重置marker_visible为false
+    RCLCPP_INFO(get_logger(), "停止检测时, 重置/marker_visible为 false.");
+    marker_detect_status.marker_visible = false;
+    marker_detect_status.marker_id = -1;
+    marker_detect_status.marker_id_correction = -1;
+    detect_status->publish(marker_detect_status);
+    marker_visible_last = marker_detect_status.marker_visible;
 }
 
 void AprilTagDoubleNode::getDetectApriltagStatus(
@@ -538,43 +583,109 @@ void AprilTagDoubleNode::getDetectApriltagStatus(
     RCLCPP_INFO(get_logger(), "GetDetectApriltagStatus called.");
 }
 
+// 在服务回调函数内调用此函数
+bool AprilTagDoubleNode::getOneImageAndInfo(
+    const std::string& image_topic,          
+    const std::string& camera_info_topic,    
+    sensor_msgs::msg::Image::ConstSharedPtr& img,
+    sensor_msgs::msg::CameraInfo::ConstSharedPtr& ci,
+    const std::chrono::seconds timeout)
+{
+    // 1. 创建独立的临时节点（不依赖当前节点）
+    auto temp_node = std::make_shared<rclcpp::Node>("temp_image_listener");
+
+    // 2. 用于存储收到的相机信息（在相机信息回调中更新）
+    auto last_camera_info = std::make_shared<sensor_msgs::msg::CameraInfo::ConstSharedPtr>();
+
+    // 3. 使用 promise/future 同步图像和相机信息
+    std::promise<std::pair<
+        sensor_msgs::msg::Image::ConstSharedPtr,
+        sensor_msgs::msg::CameraInfo::ConstSharedPtr>> promise;
+    auto future = promise.get_future();
+
+    // 4. 创建临时图像订阅
+    auto img_sub = image_transport::create_subscription(
+        temp_node.get(), image_topic,
+        [&promise, last_camera_info](const sensor_msgs::msg::Image::ConstSharedPtr& img_msg) {
+            RCLCPP_INFO(rclcpp::get_logger("temp_image_listener"), "temp img_sub ");
+            // 只有当相机信息也已收到时，才设置 promise
+            if (*last_camera_info) {
+                promise.set_value(std::make_pair(img_msg, *last_camera_info));
+            }
+        },
+        "raw", rmw_qos_profile_sensor_data);
+
+    // 5. 创建临时相机信息订阅
+    auto info_sub = temp_node->create_subscription<sensor_msgs::msg::CameraInfo>(
+        camera_info_topic, rclcpp::QoS(1).best_effort(),
+        [last_camera_info](const sensor_msgs::msg::CameraInfo::ConstSharedPtr& info_msg) {
+            RCLCPP_INFO(rclcpp::get_logger("temp_image_listener"), "temp info_sub ");
+            *last_camera_info = info_msg;
+        });
+
+    // 6. 创建独立的单线程执行器，只驱动临时节点
+    rclcpp::executors::SingleThreadedExecutor exec;
+    exec.add_node(temp_node);
+
+    // 7. 等待 future 完成（内部会驱动执行器处理回调，不会死锁）
+    auto status = exec.spin_until_future_complete(future, timeout);
+
+    if (status == rclcpp::FutureReturnCode::SUCCESS) {
+        auto result = future.get();
+        img = result.first;
+        ci = result.second;
+        RCLCPP_INFO(rclcpp::get_logger("temp_listener"), "image and camera info received.");
+        return true;
+    } else {
+        RCLCPP_WARN(rclcpp::get_logger("temp_listener"), "Timeout waiting for image & camera info");
+        return false;
+    }
+}
+
+// 在服务的回调函数中使用
 void AprilTagDoubleNode::isInChargerRange(
     const std::shared_ptr<capella_ros_service_interfaces::srv::IsInChargerRange::Request> /*req*/,
     std::shared_ptr<capella_ros_service_interfaces::srv::IsInChargerRange::Response> res)
 {
-    // 获取缓存的图像和相机信息
+    RCLCPP_INFO(get_logger(), "IsInChargerRange called.");
+
+    // 获取经过 remapping 后的实际话题名
+    std::string actual_image_topic = this->get_node_topics_interface()->resolve_topic_name("/image_rect");
+    std::string actual_camera_info_topic = this->get_node_topics_interface()->resolve_topic_name("/camera_info");
+    RCLCPP_INFO(get_logger(), "actual_image_topic name:%s ", actual_image_topic.c_str());
+    RCLCPP_INFO(get_logger(), "actual_camera_info_topic name:%s ", actual_camera_info_topic.c_str());
+
+
     sensor_msgs::msg::Image::ConstSharedPtr img;
     sensor_msgs::msg::CameraInfo::ConstSharedPtr ci;
-    rclcpp::Time img_time;
-    {
-        std::lock_guard<std::mutex> lock(img_mutex_);
-        if (!last_img_ || !last_ci_) {
-            // 尚未收到图像或相机信息
-            res->is_in_range = false;
-        }
-        img = last_img_;
-        ci = last_ci_;
-        img_time = last_img_time_;
-    }
-
-    // 检查图像新鲜度：与当前时间差小于1秒
-    auto now_time = this->get_clock()->now();
-    if ((now_time - img_time).seconds() > 1.0) {
-        // 图像太旧，忽略
-        RCLCPP_INFO(get_logger(), "Image too old, skip processing.");
+    if (getOneImageAndInfo(actual_image_topic, actual_camera_info_topic, img, ci, std::chrono::seconds(2))) {
+        last_time_camera_topic_received = this->get_clock()->now().seconds();
+        onCamera(img, ci);
+        res->is_in_range = detecting_in_charger_range_.load();
+    } else {
         res->is_in_range = false;
     }
-
-    // 调用实际处理函数
-    onCamera(img, ci);
-    res->is_in_range = detecting_in_charger_range_.load();    
-    RCLCPP_INFO(get_logger(), "IsInChargerRange called.");
 }
 
 // ========== 修改 onCamera 函数，增加范围内判断 ==========
 void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
+    double now_time = this->get_clock()->now().seconds();
+    if (now_time - last_time_camera_topic_received > 1.0)
+    {
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000, "image topic timeout.");
+        if (marker_visible_last == true)
+        {
+            RCLCPP_INFO(get_logger(), "/marker_visible status change from true to false");
+            marker_detect_status.marker_id = -1;
+            marker_detect_status.marker_id_correction = -1;
+            marker_detect_status.marker_visible = false;
+            detect_status->publish(marker_detect_status);
+            marker_visible_last = marker_detect_status.marker_visible;
+        } 
+        return;
+    }
     // 记录相机话题接收时间（已在回调中记录，这里再记录一次以保一致）
     last_time_camera_topic_received = this->get_clock()->now().seconds();
 
@@ -595,16 +706,41 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
         const std::array<double, 4> intrinsics = {msg_ci->k.data()[0], msg_ci->k.data()[4], msg_ci->k.data()[2], msg_ci->k.data()[5]};
 
-        if (!msg_img || msg_img->width <= 0 || msg_img->height <= 0) {
-            RCLCPP_ERROR(get_logger(), "Invalid image message received");
-            detecting_in_charger_range_ = false;  // 图像无效，不在范围内
+         // 详细打印图像信息（调试用）
+        RCLCPP_DEBUG(get_logger(), "Image: %dx%d, step=%u, encoding=%s",
+                    msg_img->width, msg_img->height, msg_img->step, msg_img->encoding.c_str());
+
+        // 严格检查图像有效性
+        if (!msg_img || msg_img->width == 0 || msg_img->height == 0) {
+            RCLCPP_ERROR(get_logger(), "Invalid image dimensions");
+            detecting_in_charger_range_ = false;
             return;
         }
-        cv::Mat img_uint8;
+        // 检查 step
+        int channels = (msg_img->encoding == "mono8") ? 1 : 3;
+        if (msg_img->step < msg_img->width * channels) {
+            RCLCPP_ERROR(get_logger(), "Invalid step: %u < %d", msg_img->step, msg_img->width * channels);
+            detecting_in_charger_range_ = false;
+            return;
+        }
+
+        cv_bridge::CvImagePtr cv_ptr;
         try {
-            img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
-        } catch (const cv::Exception& e) {
-            RCLCPP_ERROR(get_logger(), "OpenCV exception: %s", e.what());
+            cv_ptr = cv_bridge::toCvCopy(msg_img);
+        } catch (const cv_bridge::Exception& e) {
+            RCLCPP_ERROR(get_logger(), "cv_bridge conversion failed: %s", e.what());
+            detecting_in_charger_range_ = false;
+            return;
+        }
+
+        cv::Mat img_color = cv_ptr->image;
+        cv::Mat img_uint8;
+        if (cv_ptr->encoding == "mono8") {
+            img_uint8 = img_color;
+        } else if (cv_ptr->encoding == "bgr8" || cv_ptr->encoding == "rgb8") {
+            cv::cvtColor(img_color, img_uint8, cv::COLOR_BGR2GRAY);
+        } else {
+            RCLCPP_ERROR(get_logger(), "Unsupported encoding: %s", cv_ptr->encoding.c_str());
             detecting_in_charger_range_ = false;
             return;
         }
@@ -613,7 +749,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
         mutex.lock();
         double start_time = this->now().seconds();
-        detections = *apriltag_detector_detect(td, &im);
+        auto detections = apriltag_detector_detect(td, &im);
         double end_time = this->now().seconds();
         RCLCPP_DEBUG(get_logger(), "compute detections cost time: %d ms", (int)round((end_time - start_time) * 1000));
         mutex.unlock();
@@ -625,9 +761,9 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         msg_detections.header = msg_img->header;
         std::vector<geometry_msgs::msg::TransformStamped> tfs;
 
-        for(int i = 0; i < zarray_size(&detections); i++) {
+        for(int i = 0; i < zarray_size(detections); i++) {
             apriltag_detection_t* det;
-            zarray_get(&detections, i, &det);
+            zarray_get(detections, i, &det);
 
             RCLCPP_DEBUG(get_logger(),
                          "detection %3d: id (%2dx%2d)-%-4d, hamming %d, margin %8.3f\n",
@@ -669,10 +805,10 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             id_tf_pair.first = det->id;
             id_tf_pair.second = tf;
             id_and_tf_vec.push_back(id_tf_pair);
-            tfs.push_back(stampedTransform_real_to_dummy);
+            tfs.push_back(stampedTransform_real_to_dummy); // marker1_real_to_dummy, marker2_real_to_dummy ...
         }
 
-        int detections_size = zarray_size(&detections);
+        int detections_size = zarray_size(detections);
         frame_all++;
         if (detections_size < 2)
         {
@@ -687,7 +823,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             for (int i = 0; i < detections_size; i++)
             {            
                 apriltag_detection_t* det;
-                zarray_get(&detections, i, &det);
+                zarray_get(detections, i, &det);
                 if (det->hamming <= max_hamming.load())
                 {
                     marker_id_vector.push_back(det->id);
@@ -729,6 +865,16 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         // 默认不在范围内，只有通过验证且位姿在阈值内才设为 true
         bool in_range = false;
 
+        if (marker_detect_status.marker_visible != marker_visible_last)
+        {
+            RCLCPP_INFO(get_logger(), "/marker_visible status change from %s to %s", 
+                marker_visible_last ? "true" : "false",
+                marker_detect_status.marker_visible ? "true" : "false"
+            );
+            detect_status->publish(marker_detect_status);
+            marker_visible_last = marker_detect_status.marker_visible;
+        }
+
         if (marker_detect_status.marker_visible)
         {
             frame_detected++;
@@ -739,7 +885,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             stampedTransform_marker1_to_charger.header.stamp = msg_img->header.stamp;
             stampedTransform_marker1_to_charger.child_frame_id = std::string("charger");
             tf2::toMsg(tf_marker1_to_charger, stampedTransform_marker1_to_charger.transform);
-            tfs.push_back(stampedTransform_marker1_to_charger);
+            tfs.push_back(stampedTransform_marker1_to_charger); // marker1_dummy_to_charger
 
             size_t tf_size = id_and_tf_vec.size();
             int index_marker1 = 0, index_marker2 = 0;
@@ -763,38 +909,38 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
             tf_marker1_to_marker2_current = tf_real_to_dummy.inverse() * tf_camera_to_marker1.inverse() * tf_camera_to_marker2 * tf_real_to_dummy;
             
             // 调试信息（保留）
-            {
-                {
-                    double x, y, theta;
-                    x = tf_marker1_to_marker2_fixed.getOrigin()[0];
-                    y = tf_marker1_to_marker2_fixed.getOrigin()[1];
-                    theta = tf2::getYaw(tf_marker1_to_marker2_fixed.getRotation());
-                    RCLCPP_INFO_ONCE(get_logger(), "x: %f, y: %f, theta: %f", x, y, theta);
-                }
-                {
-                    double x, y, theta;
-                    x = tf_marker1_to_marker2_current.getOrigin()[0];
-                    y = tf_marker1_to_marker2_current.getOrigin()[1];
-                    theta = tf2::getYaw(tf_marker1_to_marker2_current.getRotation());
-                    RCLCPP_INFO_ONCE(get_logger(), "x_c: %f, y_c: %f, theta_c: %f", x, y, theta);
-                }
-                {
-                    double x, y, theta;
-                    auto tf = tf_real_to_dummy.inverse() * tf_camera_to_marker1.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                    x = tf.getOrigin()[0];
-                    y = tf.getOrigin()[1];
-                    theta = tf2::getYaw(tf.getRotation());
-                    RCLCPP_INFO_ONCE(get_logger(), "x_1: %f, y_1: %f, theta_1: %f", x, y, theta);
-                }
-                {
-                    double x, y, theta;
-                    auto tf = tf_real_to_dummy.inverse() * tf_camera_to_marker2.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                    x = tf.getOrigin()[0];
-                    y = tf.getOrigin()[1];
-                    theta = tf2::getYaw(tf.getRotation());
-                    RCLCPP_INFO_ONCE(get_logger(), "x_2: %f, y_2: %f, theta_2: %f", x, y, theta);
-                }
-            }
+            // {
+            //     {
+            //         double x, y, theta;
+            //         x = tf_marker1_to_marker2_fixed.getOrigin()[0];
+            //         y = tf_marker1_to_marker2_fixed.getOrigin()[1];
+            //         theta = tf2::getYaw(tf_marker1_to_marker2_fixed.getRotation());
+            //         RCLCPP_INFO_ONCE(get_logger(), "x: %f, y: %f, theta: %f", x, y, theta);
+            //     }
+            //     {
+            //         double x, y, theta;
+            //         x = tf_marker1_to_marker2_current.getOrigin()[0];
+            //         y = tf_marker1_to_marker2_current.getOrigin()[1];
+            //         theta = tf2::getYaw(tf_marker1_to_marker2_current.getRotation());
+            //         RCLCPP_INFO_ONCE(get_logger(), "x_c: %f, y_c: %f, theta_c: %f", x, y, theta);
+            //     }
+            //     {
+            //         double x, y, theta;
+            //         auto tf = tf_real_to_dummy.inverse() * tf_camera_to_marker1.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
+            //         x = tf.getOrigin()[0];
+            //         y = tf.getOrigin()[1];
+            //         theta = tf2::getYaw(tf.getRotation());
+            //         RCLCPP_INFO_ONCE(get_logger(), "x_1: %f, y_1: %f, theta_1: %f", x, y, theta);
+            //     }
+            //     {
+            //         double x, y, theta;
+            //         auto tf = tf_real_to_dummy.inverse() * tf_camera_to_marker2.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
+            //         x = tf.getOrigin()[0];
+            //         y = tf.getOrigin()[1];
+            //         theta = tf2::getYaw(tf.getRotation());
+            //         RCLCPP_INFO_ONCE(get_logger(), "x_2: %f, y_2: %f, theta_2: %f", x, y, theta);
+            //     }
+            // }
 
             auto tf_fixed_to_current = tf_marker1_to_marker2_fixed.inverse() * tf_marker1_to_marker2_current;
             float error_x, error_y, error_z;
@@ -818,8 +964,8 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
             if (similarity > similarity_threshold && error_radius < radius_threshold)
             {
-                tfs.push_back(id_and_tf_vec[index_marker1].second);
-                tfs.push_back(id_and_tf_vec[index_marker2].second);
+                tfs.push_back(id_and_tf_vec[index_marker1].second);   // depth_camera_to_marker1_real
+                tfs.push_back(id_and_tf_vec[index_marker2].second);   // depth_camera_to_marker2_real
 
                 auto end_time = this->get_clock()->now().seconds();
                 auto start_time = rclcpp::Time(msg_img->header.stamp).seconds();
@@ -837,20 +983,29 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
                 tf2::toMsg(tf_charger_to_baselink_dummy, pose_with_id_msg.pose.pose);
                 pose_with_id_pub->publish(pose_with_id_msg);
 
-                // ========== 新增：判断是否在充电桩范围内 ==========
+                // pub 充电桩范围内marker
+                publishRectMarker();
+
+                // ========== 判断是否在充电桩范围内 ==========
                 // 提取相对于 base_link_dummy 的位姿
                 double x = tf_charger_to_baselink_dummy.getOrigin().x();
                 double y = tf_charger_to_baselink_dummy.getOrigin().y();
                 double yaw = tf2::getYaw(tf_charger_to_baselink_dummy.getRotation());
+                RCLCPP_INFO(get_logger(), "x: %.2f, y: %.2f, yaw: %.2f", x, y, yaw);
+                RCLCPP_INFO(get_logger(), "pose_x_min_: %.2f, pose_x_max_: %.2f", pose_x_min_, pose_x_max_);
+                RCLCPP_INFO(get_logger(), "pose_y_min_: %.2f, pose_y_max_: %.2f", pose_y_min_, pose_y_max_);
+                RCLCPP_INFO(get_logger(), "yaw_min_: %.2f, yaw_max_: %.2f", yaw_min_, yaw_max_);
                 if (x > pose_x_min_ && x < pose_x_max_ &&
                     y > pose_y_min_ && y < pose_y_max_ &&
                     yaw > yaw_min_ && yaw < yaw_max_)
                 {
                     in_range = true;
+                    RCLCPP_INFO(get_logger(), "in charger range");
                 }
                 else
                 {
                     in_range = false;
+                    RCLCPP_INFO(get_logger(), "not in charger range");
                 }
             }
             else
@@ -882,10 +1037,11 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         tf_baselink_to_baselink_dummy_msg.header.stamp = msg_img->header.stamp;
         tf_baselink_to_baselink_dummy_msg.child_frame_id = std::string("base_link_dummy");
         tf2::toMsg(tf_base_link_to_dummy_base_link, tf_baselink_to_baselink_dummy_msg.transform);
-        tfs.push_back(tf_baselink_to_baselink_dummy_msg);
+        tfs.push_back(tf_baselink_to_baselink_dummy_msg); // base_link_to_base_link_dummy
 
         pub_detections->publish(msg_detections);
         tf_broadcaster.sendTransform(tfs);
+        zarray_destroy(detections);
     }
     catch(const char* msg)
     {
@@ -896,6 +1052,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000, "frame_detected_rate: %f", frame_detected / (float)frame_all);
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000, "tf error rate: %f", frame_error / (float)frame_detected);
     }
+    
 }
 
 bool AprilTagDoubleNode::in_idRanges(std::vector<int> ids)

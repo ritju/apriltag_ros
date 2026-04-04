@@ -49,6 +49,7 @@ find_package(aruco_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(capella_ros_service_interfaces REQUIRED)
 find_package(angles REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 
 if(cv_bridge_VERSION VERSION_GREATER_EQUAL 3.3.0)
@@ -66,27 +67,27 @@ set_property(TARGET pose_estimation PROPERTY POSITION_INDEPENDENT_CODE ON)
 ament_target_dependencies(pose_estimation tf2_ros)
 
 add_library(AprilTagNode SHARED src/AprilTagNode.cpp)
-ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+ament_target_dependencies(AprilTagNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces visualization_msgs std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(AprilTagNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(AprilTagNode PLUGIN "AprilTagNode" EXECUTABLE "apriltag_node")
 
 add_library(CalibrationNode SHARED src/CalibrationNode.cpp)
-ament_target_dependencies(CalibrationNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+ament_target_dependencies(CalibrationNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces visualization_msgs std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(CalibrationNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(CalibrationNode PLUGIN "CalibrationNode" EXECUTABLE "calibration_node")
 
 add_library(Cam2CamNode SHARED src/Cam2CamNode.cpp)
-ament_target_dependencies(Cam2CamNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+ament_target_dependencies(Cam2CamNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces visualization_msgs std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(Cam2CamNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(Cam2CamNode PLUGIN "Cam2CamNode" EXECUTABLE "cam2cam_node")
 
 add_library(AprilTagSingleNode SHARED src/AprilTagSingleNode.cpp)
-ament_target_dependencies(AprilTagSingleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+ament_target_dependencies(AprilTagSingleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces visualization_msgs std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(AprilTagSingleNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(AprilTagSingleNode PLUGIN "AprilTagSingleNode" EXECUTABLE "apriltag_single_node")
 
 add_library(AprilTagDoubleNode SHARED src/AprilTagDoubleNode.cpp)
-ament_target_dependencies(AprilTagDoubleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces std_msgs aruco_msgs image_transport cv_bridge angles)
+ament_target_dependencies(AprilTagDoubleNode rclcpp rclcpp_components sensor_msgs apriltag_msgs tf2_ros tf2 tf2_geometry_msgs capella_ros_service_interfaces visualization_msgs std_msgs aruco_msgs image_transport cv_bridge angles)
 target_link_libraries(AprilTagDoubleNode apriltag::apriltag tags pose_estimation Eigen3::Eigen)
 rclcpp_components_register_node(AprilTagDoubleNode PLUGIN "AprilTagDoubleNode" EXECUTABLE "apriltag_double_node")
 

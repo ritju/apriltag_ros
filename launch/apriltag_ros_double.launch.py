@@ -2,12 +2,9 @@ import os
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import Node
+from launch_ros.actions import Node, ComposableNodeContainer
 from launch.substitutions import LaunchConfiguration
-from launch.substitutions import TextSubstitution
-from nav2_common.launch import RewrittenYaml
+from launch_ros.descriptions import ComposableNode
 
 def launch_setup(context, *args, **kwargs):      
 
@@ -124,7 +121,8 @@ def launch_setup(context, *args, **kwargs):
     apriltag_pkg_path = get_package_share_directory('apriltag_ros')
 
     # get params file
-    apriltag_node_params_file = os.path.join(apriltag_pkg_path, 'cfg', 'tags_36h11.yaml')
+    apriltag_node_params_file1 = os.path.join(apriltag_pkg_path, 'cfg', 'tags_36h11.yaml')
+    apriltag_node_params_file2 = os.path.join(apriltag_pkg_path, 'cfg', 'params.yaml')
 
     image_topic = '/camera3/color/image_raw'    
     try :
@@ -158,13 +156,34 @@ def launch_setup(context, *args, **kwargs):
         name='apriltag_double_node',
         namespace='',
         output='screen',
-        parameters=[apriltag_node_params_file, apriltag_ros_extra_params],
+        parameters=[apriltag_node_params_file1, apriltag_node_params_file2, apriltag_ros_extra_params],
         remappings=[('/image_rect', image_topic),
                     ('/camera_info', camera_info_topic)],
         arguments=['--ros-args', '--log-level', ['apriltag_double_node:=', LaunchConfiguration('log_level')]],
     )
 
+    # container = ComposableNodeContainer(
+    #     name='my_multi_threaded_container',
+    #     namespace='',
+    #     package='rclcpp_components',
+    #     executable='component_container_mt',  # 使用多线程容器
+    #     # 可选：指定线程数，默认为0表示使用系统CPU核心数
+    #     # arguments=['--ros-args', '-p', 'number_of_threads:=4'],
+    #     composable_node_descriptions=[
+    #         ComposableNode(
+    #             package='apriltag_ros',
+    #             plugin='AprilTagDoubleNode',
+    #             name='apriltag_double_node',
+    #             parameters=[apriltag_node_params_file1, apriltag_node_params_file2, apriltag_ros_extra_params],
+    #             remappings=[('/image_rect', image_topic),
+    #                         ('/camera_info', camera_info_topic)],
+    #         ),
+    #     ],
+    #     output='screen',
+    # )
+
     return [apriltag_ros_node]
+    # return [container]
 
 
 def generate_launch_description():
