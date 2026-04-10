@@ -991,21 +991,21 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
                 double x = tf_charger_to_baselink_dummy.getOrigin().x();
                 double y = tf_charger_to_baselink_dummy.getOrigin().y();
                 double yaw = tf2::getYaw(tf_charger_to_baselink_dummy.getRotation());
-                RCLCPP_INFO(get_logger(), "x: %.2f, y: %.2f, yaw: %.2f", x, y, yaw);
-                RCLCPP_INFO(get_logger(), "pose_x_min_: %.2f, pose_x_max_: %.2f", pose_x_min_, pose_x_max_);
-                RCLCPP_INFO(get_logger(), "pose_y_min_: %.2f, pose_y_max_: %.2f", pose_y_min_, pose_y_max_);
-                RCLCPP_INFO(get_logger(), "yaw_min_: %.2f, yaw_max_: %.2f", yaw_min_, yaw_max_);
+                RCLCPP_DEBUG(get_logger(), "x: %.2f, y: %.2f, yaw: %.2f", x, y, yaw);
+                RCLCPP_DEBUG(get_logger(), "pose_x_min_: %.2f, pose_x_max_: %.2f", pose_x_min_, pose_x_max_);
+                RCLCPP_DEBUG(get_logger(), "pose_y_min_: %.2f, pose_y_max_: %.2f", pose_y_min_, pose_y_max_);
+                RCLCPP_DEBUG(get_logger(), "yaw_min_: %.2f, yaw_max_: %.2f", yaw_min_, yaw_max_);
                 if (x > pose_x_min_ && x < pose_x_max_ &&
                     y > pose_y_min_ && y < pose_y_max_ &&
                     yaw > yaw_min_ && yaw < yaw_max_)
                 {
                     in_range = true;
-                    RCLCPP_INFO(get_logger(), "in charger range");
+                    RCLCPP_DEBUG(get_logger(), "in charger range");
                 }
                 else
                 {
                     in_range = false;
-                    RCLCPP_INFO(get_logger(), "not in charger range");
+                    RCLCPP_DEBUG(get_logger(), "not in charger range");
                 }
             }
             else
