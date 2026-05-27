@@ -14,6 +14,7 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include "tf2_ros/static_transform_broadcaster.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
@@ -109,6 +110,7 @@ private:
 
     rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
     tf2_ros::TransformBroadcaster tf_broadcaster;
+    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_broadcaster_;
 
     pose_estimation_f estimate_pose = nullptr;
 
@@ -233,6 +235,9 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
+    // 创建静态广播器
+    static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+
     // 参数声明（原有部分省略，保留不变）
     apriltag_family_name = declare_parameter("family", "36h11", descr("tag family", true));
     tag_edge_size = declare_parameter("size", 1.0, descr("default tag size", true));
@@ -331,11 +336,21 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     q_marker_real_to_dummy.setRPY(-M_PI / 2.0, M_PI / 2.0, 0.0);
     tf_real_to_dummy.setRotation(q_marker_real_to_dummy);
 
+    // 计算并发布 base_link 到 base_link_dummy 的静态变换
+    // 创建base_link到base_link_dummy的静态变换
     tf_base_link_to_dummy_base_link.setIdentity();
     tf_base_link_to_dummy_base_link.setOrigin(tf2::Vector3(base_link_dummy_transform_x, base_link_dummy_transform_y, base_link_dummy_transform_z));
     tf2::Quaternion q_base_link_to_dummy_base_link;
     q_base_link_to_dummy_base_link.setRPY(0.0, 0.0, M_PI);
     tf_base_link_to_dummy_base_link.setRotation(q_base_link_to_dummy_base_link);
+
+    geometry_msgs::msg::TransformStamped tf_baselink_to_baselink_dummy_msg;
+    tf_baselink_to_baselink_dummy_msg.header.frame_id = std::string("base_link");
+    tf_baselink_to_baselink_dummy_msg.header.stamp = rclcpp::Time(0); // 使用0表示静态变换
+    tf_baselink_to_baselink_dummy_msg.child_frame_id = std::string("base_link_dummy");
+    tf2::toMsg(tf_base_link_to_dummy_base_link, tf_baselink_to_baselink_dummy_msg.transform);
+    // 发送静态变换
+    static_broadcaster_->sendTransform(tf_baselink_to_baselink_dummy_msg);
 
     tf_marker1_to_charger.setIdentity();
     RCLCPP_INFO(get_logger(), "marker_frame_translation: %f", marker_frame_translation);
@@ -1032,12 +1047,12 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         // 更新原子变量
         detecting_in_charger_range_ = in_range;
 
-        geometry_msgs::msg::TransformStamped tf_baselink_to_baselink_dummy_msg;
-        tf_baselink_to_baselink_dummy_msg.header.frame_id = std::string("base_link");
-        tf_baselink_to_baselink_dummy_msg.header.stamp = msg_img->header.stamp;
-        tf_baselink_to_baselink_dummy_msg.child_frame_id = std::string("base_link_dummy");
-        tf2::toMsg(tf_base_link_to_dummy_base_link, tf_baselink_to_baselink_dummy_msg.transform);
-        tfs.push_back(tf_baselink_to_baselink_dummy_msg); // base_link_to_base_link_dummy
+        // geometry_msgs::msg::TransformStamped tf_baselink_to_baselink_dummy_msg;
+        // tf_baselink_to_baselink_dummy_msg.header.frame_id = std::string("base_link");
+        // tf_baselink_to_baselink_dummy_msg.header.stamp = msg_img->header.stamp;
+        // tf_baselink_to_baselink_dummy_msg.child_frame_id = std::string("base_link_dummy");
+        // tf2::toMsg(tf_base_link_to_dummy_base_link, tf_baselink_to_baselink_dummy_msg.transform);
+        // tfs.push_back(tf_baselink_to_baselink_dummy_msg); // base_link_to_base_link_dummy
 
         pub_detections->publish(msg_detections);
         tf_broadcaster.sendTransform(tfs);
