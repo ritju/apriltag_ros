@@ -60,7 +60,7 @@ add_library(tags OBJECT src/tag_functions.cpp)
 target_link_libraries(tags apriltag::apriltag)
 set_property(TARGET tags PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-add_library(pose_estimation OBJECT src/pose_estimation.cpp)
+add_library(pose_estimation OBJECT src/pose_estimation.cpp src/corner_refine.cpp)
 target_include_directories(pose_estimation PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(pose_estimation apriltag::apriltag Eigen3::Eigen ${OpenCV_LIBS})
 set_property(TARGET pose_estimation PROPERTY POSITION_INDEPENDENT_CODE ON)

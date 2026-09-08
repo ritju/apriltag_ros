@@ -7,6 +7,7 @@
 #else
 #include <cv_bridge/cv_bridge.h>
 #endif
+#include <opencv2/imgproc.hpp>
 #include <image_transport/camera_subscriber.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -26,6 +27,9 @@
 #include "std_msgs/msg/string.hpp"
 #include "capella_ros_service_interfaces/msg/charge_marker_visible.hpp"
 #include <math.h>
+#include <algorithm>
+#include <cmath>
+#include <string>
 
 // 新增服务头文件
 #include "capella_ros_service_interfaces/srv/start_detect_apriltag.hpp"
@@ -221,6 +225,53 @@ private:
         sensor_msgs::msg::Image::ConstSharedPtr& img,
         sensor_msgs::msg::CameraInfo::ConstSharedPtr& ci,
         const std::chrono::seconds timeout);
+
+    // ========== [pose_opt] 精度优化：ESF / 联合 PnP / SE(2) 滤波 ==========
+    bool enable_esf_refine_{true};
+    bool enable_joint_pnp_{true};
+    bool enable_pose_filter_{true};
+    double pose_rms_threshold_{1.5};
+    double pose_hold_sec_{0.3};
+    double pose_gate_xy_{0.05};
+    double pose_gate_yaw_{0.087};
+    double pose_filter_alpha_max_{0.4};
+
+    bool pose_filter_inited_{false};
+    bool last_good_pose_valid_{false};
+    double filt_x_{0.0};
+    double filt_y_{0.0};
+    double filt_yaw_{0.0};
+    double filt_vx_{0.0};
+    double filt_vy_{0.0};
+    double filt_omega_{0.0};
+    rclcpp::Time filt_stamp_{0, 0, RCL_ROS_TIME};
+    rclcpp::Time last_good_pose_stamp_{0, 0, RCL_ROS_TIME};
+    tf2::Transform last_tf_charger_to_baselink_dummy_;
+
+    int frame_joint_ok_{0};
+    int frame_joint_fail_{0};
+    int frame_filter_hold_{0};
+    int frame_filter_gate_{0};
+
+    static double wrapPi(double a);
+    void resetPoseFilter();
+    bool solveJointTagPnP(apriltag_detection_t* det1,
+                          apriltag_detection_t* det2,
+                          const std::array<double, 4>& intr,
+                          double tagsize,
+                          tf2::Transform& tf_cam_to_m1,
+                          double& rms);
+    bool updatePoseFilter(const rclcpp::Time& stamp,
+                          double x_meas,
+                          double y_meas,
+                          double yaw_meas,
+                          double rms,
+                          bool measurement_valid,
+                          double& x_out,
+                          double& y_out,
+                          double& yaw_out,
+                          std::string& dbg);
+    static tf2::Transform replaceSe2(const tf2::Transform& src, double x, double y, double yaw);
 };
 
 RCLCPP_COMPONENTS_REGISTER_NODE(AprilTagDoubleNode)
@@ -251,6 +302,16 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     declare_parameter("detector.refine", td->refine_edges, descr("snap to strong gradients"));
     declare_parameter("detector.sharpening", td->decode_sharpening, descr("sharpening of decoded images"));
     declare_parameter("detector.debug", td->debug, descr("write additional debugging images to working directory"));
+    // [pose_opt] declare 不会保证把 yaml 覆盖值写进 td，这里显式读回
+    td->nthreads = get_parameter("detector.threads").as_int();
+    td->quad_decimate = static_cast<float>(get_parameter("detector.decimate").as_double());
+    td->quad_sigma = static_cast<float>(get_parameter("detector.blur").as_double());
+    td->refine_edges = get_parameter("detector.refine").as_bool();
+    td->decode_sharpening = get_parameter("detector.sharpening").as_double();
+    td->debug = get_parameter("detector.debug").as_bool();
+    RCLCPP_INFO(get_logger(),
+                "[pose_opt] detector threads=%d decimate=%.2f blur=%.2f refine=%d sharpening=%.2f",
+                td->nthreads, td->quad_decimate, td->quad_sigma, td->refine_edges ? 1 : 0, td->decode_sharpening);
     declare_parameter("max_hamming", 0, descr("reject detections with more corrected bits than allowed"));
     declare_parameter("profile", false, descr("print profiling information to stdout"));
     declare_parameter("marker_id_and_bluetooth_mac_vec", std::vector<std::string>(), descr("the vector of marker id and bluetooth mac"));
@@ -284,6 +345,30 @@ AprilTagDoubleNode::AprilTagDoubleNode(const rclcpp::NodeOptions& options)
     this->get_parameter_or<float>("base_link_dummy_transform_x", base_link_dummy_transform_x, -0.374);
     this->get_parameter_or<float>("base_link_dummy_transform_y", base_link_dummy_transform_y, 0.0);
     this->get_parameter_or<float>("base_link_dummy_transform_z", base_link_dummy_transform_z, 0.50);
+
+    // [pose_opt] 精度优化参数（可用 cfg/params.yaml 或运行时覆盖）
+    this->declare_parameter("enable_esf_refine", true);
+    this->declare_parameter("enable_joint_pnp", true);
+    this->declare_parameter("enable_pose_filter", true);
+    this->declare_parameter("pose_rms_threshold", 1.5);
+    this->declare_parameter("pose_hold_sec", 0.3);
+    this->declare_parameter("pose_gate_xy", 0.05);
+    this->declare_parameter("pose_gate_yaw", 0.087);
+    this->declare_parameter("pose_filter_alpha_max", 0.4);
+    this->get_parameter("enable_esf_refine", enable_esf_refine_);
+    this->get_parameter("enable_joint_pnp", enable_joint_pnp_);
+    this->get_parameter("enable_pose_filter", enable_pose_filter_);
+    this->get_parameter("pose_rms_threshold", pose_rms_threshold_);
+    this->get_parameter("pose_hold_sec", pose_hold_sec_);
+    this->get_parameter("pose_gate_xy", pose_gate_xy_);
+    this->get_parameter("pose_gate_yaw", pose_gate_yaw_);
+    this->get_parameter("pose_filter_alpha_max", pose_filter_alpha_max_);
+    RCLCPP_INFO(get_logger(),
+                "[pose_opt] esf=%d joint_pnp=%d filter=%d rms_th=%.2f hold=%.2fs gate_xy=%.3f gate_yaw=%.3f alpha_max=%.2f",
+                enable_esf_refine_ ? 1 : 0, enable_joint_pnp_ ? 1 : 0, enable_pose_filter_ ? 1 : 0,
+                pose_rms_threshold_, pose_hold_sec_, pose_gate_xy_, pose_gate_yaw_, pose_filter_alpha_max_);
+
+    last_tf_charger_to_baselink_dummy_.setIdentity();
 
     // 解析 marker_id_and_bluetooth_mac_vector
     int id_mac_length = marker_id_and_bluetooth_mac_vector.size();
@@ -577,6 +662,7 @@ void AprilTagDoubleNode::stopDetectApriltag(
     frame_detected =0;
     frame_error = 0;
     detecting_apriltag_ = false;
+    resetPoseFilter();
     // 停止检测时，将范围内标志重置为 false（因为不再更新）
     RCLCPP_INFO(get_logger(), "停止检测时，重置充电桩范围内标志为 false.");
     detecting_in_charger_range_ = false;
@@ -752,15 +838,19 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         cv::Mat img_uint8;
         if (cv_ptr->encoding == "mono8") {
             img_uint8 = img_color;
-        } else if (cv_ptr->encoding == "bgr8" || cv_ptr->encoding == "rgb8") {
+        } else if (cv_ptr->encoding == "bgr8") {
             cv::cvtColor(img_color, img_uint8, cv::COLOR_BGR2GRAY);
+        } else if (cv_ptr->encoding == "rgb8") {
+            // [pose_opt] 原代码 rgb8 误用 COLOR_BGR2GRAY，会损伤边缘梯度
+            cv::cvtColor(img_color, img_uint8, cv::COLOR_RGB2GRAY);
         } else {
             RCLCPP_ERROR(get_logger(), "Unsupported encoding: %s", cv_ptr->encoding.c_str());
             detecting_in_charger_range_ = false;
             return;
         }
 
-        image_u8_t im{img_uint8.cols, img_uint8.rows, img_uint8.cols, img_uint8.data};
+        // [pose_opt] stride 使用 step1()，避免非连续 Mat 把检测器读偏
+        image_u8_t im{img_uint8.cols, img_uint8.rows, static_cast<int>(img_uint8.step1()), img_uint8.data};
 
         mutex.lock();
         double start_time = this->now().seconds();
@@ -787,6 +877,25 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
             if(!tag_frames.empty() && !tag_frames.count(det->id)) { continue; }
             if(det->hamming > max_hamming) { continue; }
+
+            // [pose_opt 阶段3] Sigmoid ESF 亚像素修边，写回 det->p 后再 PnP
+            if (enable_esf_refine_) {
+                const double p_before[4][2] = {
+                    {det->p[0][0], det->p[0][1]},
+                    {det->p[1][0], det->p[1][1]},
+                    {det->p[2][0], det->p[2][1]},
+                    {det->p[3][0], det->p[3][1]},
+                };
+                const CornerRefineResult esf = refine_corners_esf(img_uint8, det->p);
+                RCLCPP_DEBUG(get_logger(),
+                             "[pose_opt] esf id=%d updated=%d edges=%d samples=%d/%d "
+                             "dp0=(%.3f,%.3f) dp1=(%.3f,%.3f) dp2=(%.3f,%.3f) dp3=(%.3f,%.3f)",
+                             det->id, esf.updated ? 1 : 0, esf.n_edge_ok, esf.n_sample_ok, esf.n_sample_all,
+                             det->p[0][0] - p_before[0][0], det->p[0][1] - p_before[0][1],
+                             det->p[1][0] - p_before[1][0], det->p[1][1] - p_before[1][1],
+                             det->p[2][0] - p_before[2][0], det->p[2][1] - p_before[2][1],
+                             det->p[3][0] - p_before[3][0], det->p[3][1] - p_before[3][1]);
+            }
 
             apriltag_msgs::msg::AprilTagDetection msg_detection;
             msg_detection.family = std::string(det->family->name);
@@ -879,16 +988,14 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
         
         // 默认不在范围内，只有通过验证且位姿在阈值内才设为 true
         bool in_range = false;
-
-        if (marker_detect_status.marker_visible != marker_visible_last)
-        {
-            RCLCPP_INFO(get_logger(), "/marker_visible status change from %s to %s", 
-                marker_visible_last ? "true" : "false",
-                marker_detect_status.marker_visible ? "true" : "false"
-            );
-            detect_status->publish(marker_detect_status);
-            marker_visible_last = marker_detect_status.marker_visible;
-        }
+        const rclcpp::Time img_stamp(msg_img->header.stamp);
+        bool measurement_valid = false;
+        tf2::Transform tf_charger_to_baselink_dummy;
+        tf_charger_to_baselink_dummy.setIdentity();
+        float similarity = 0.0f;
+        float error_radius = 1e9f;
+        double joint_rms = 1e9;
+        bool used_joint_pnp = false;
 
         if (marker_detect_status.marker_visible)
         {
@@ -922,137 +1029,152 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
             tf2::Transform tf_marker1_to_marker2_current;
             tf_marker1_to_marker2_current = tf_real_to_dummy.inverse() * tf_camera_to_marker1.inverse() * tf_camera_to_marker2 * tf_real_to_dummy;
-            
-            // 调试信息（保留）
-            // {
-            //     {
-            //         double x, y, theta;
-            //         x = tf_marker1_to_marker2_fixed.getOrigin()[0];
-            //         y = tf_marker1_to_marker2_fixed.getOrigin()[1];
-            //         theta = tf2::getYaw(tf_marker1_to_marker2_fixed.getRotation());
-            //         RCLCPP_INFO_ONCE(get_logger(), "x: %f, y: %f, theta: %f", x, y, theta);
-            //     }
-            //     {
-            //         double x, y, theta;
-            //         x = tf_marker1_to_marker2_current.getOrigin()[0];
-            //         y = tf_marker1_to_marker2_current.getOrigin()[1];
-            //         theta = tf2::getYaw(tf_marker1_to_marker2_current.getRotation());
-            //         RCLCPP_INFO_ONCE(get_logger(), "x_c: %f, y_c: %f, theta_c: %f", x, y, theta);
-            //     }
-            //     {
-            //         double x, y, theta;
-            //         auto tf = tf_real_to_dummy.inverse() * tf_camera_to_marker1.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-            //         x = tf.getOrigin()[0];
-            //         y = tf.getOrigin()[1];
-            //         theta = tf2::getYaw(tf.getRotation());
-            //         RCLCPP_INFO_ONCE(get_logger(), "x_1: %f, y_1: %f, theta_1: %f", x, y, theta);
-            //     }
-            //     {
-            //         double x, y, theta;
-            //         auto tf = tf_real_to_dummy.inverse() * tf_camera_to_marker2.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-            //         x = tf.getOrigin()[0];
-            //         y = tf.getOrigin()[1];
-            //         theta = tf2::getYaw(tf.getRotation());
-            //         RCLCPP_INFO_ONCE(get_logger(), "x_2: %f, y_2: %f, theta_2: %f", x, y, theta);
-            //     }
-            // }
 
             auto tf_fixed_to_current = tf_marker1_to_marker2_fixed.inverse() * tf_marker1_to_marker2_current;
             float error_x, error_y, error_z;
             error_x = tf_fixed_to_current.getOrigin()[0];
             error_y = tf_fixed_to_current.getOrigin()[1];
             error_z = tf_fixed_to_current.getOrigin()[2];
-            float error_radius = std::hypot(std::hypot(error_x, error_y), error_z);
-            
-            float w_f, x_f, y_f, z_f, w_c, x_c, y_c, z_c;
+            error_radius = std::hypot(std::hypot(error_x, error_y), error_z);
+
             auto q_f = tf_marker1_to_marker2_fixed.getRotation();
             auto q_c = tf_marker1_to_marker2_current.getRotation();
-            w_f = q_f.getW();
-            x_f = q_f.getX();
-            y_f = q_f.getY();
-            z_f = q_f.getZ();
-            w_c = q_c.getW();
-            x_c = q_c.getX();
-            y_c = q_c.getY();
-            z_c = q_c.getZ();
-            float similarity = w_f * w_c + x_f * x_c + y_f * y_c + z_f * z_c;
+            similarity = std::fabs(q_f.getW()*q_c.getW() + q_f.getX()*q_c.getX() + q_f.getY()*q_c.getY() + q_f.getZ()*q_c.getZ());
 
-            if (similarity > similarity_threshold && error_radius < radius_threshold)
-            {
+            RCLCPP_DEBUG(get_logger(),
+                         "[pose_opt] dual-check similarity=%.5f (th=%.5f) radius=%.5f (th=%.5f)",
+                         similarity, similarity_threshold, error_radius, radius_threshold);
+
+            // [pose_opt 阶段2] 双标签 8 点刚体 PnP，用安装约束一次性求解 cam->marker1
+            apriltag_detection_t* det1 = nullptr;
+            apriltag_detection_t* det2 = nullptr;
+            for (int i = 0; i < detections_size; ++i) {
+                apriltag_detection_t* det = nullptr;
+                zarray_get(detections, i, &det);
+                if (det->id == marker_id) {
+                    det1 = det;
+                }
+                if (det->id == marker_id_correction) {
+                    det2 = det;
+                }
+            }
+
+            if (enable_joint_pnp_ && det1 && det2) {
+                const double size = tag_sizes.count(marker_id) ? tag_sizes.at(marker_id) : tag_edge_size;
+                tf2::Transform tf_joint;
+                if (solveJointTagPnP(det1, det2, intrinsics, size, tf_joint, joint_rms)) {
+                    RCLCPP_DEBUG(get_logger(), "[pose_opt] joint8 rms=%.3f px (th=%.3f)", joint_rms, pose_rms_threshold_);
+                    if (joint_rms < pose_rms_threshold_) {
+                        tf_camera_to_marker1 = tf_joint;
+                        used_joint_pnp = true;
+                        measurement_valid = true;
+                        frame_joint_ok_++;
+                        tf2::toMsg(tf_camera_to_marker1, id_and_tf_vec[index_marker1].second.transform);
+                    } else {
+                        frame_joint_fail_++;
+                        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500,
+                                             "[pose_opt] joint8 rms too large: %.3f >= %.3f, fallback to independent PnP gate",
+                                             joint_rms, pose_rms_threshold_);
+                    }
+                } else {
+                    frame_joint_fail_++;
+                    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "[pose_opt] joint8 solvePnP failed, fallback");
+                }
+            }
+
+            // 联合 PnP 未过门限时，回退到原来的双独立 PnP + similarity/radius 门控
+            if (!measurement_valid) {
+                if (similarity > similarity_threshold && error_radius < radius_threshold) {
+                    measurement_valid = true;
+                    RCLCPP_DEBUG(get_logger(), "[pose_opt] accepted by legacy similarity/radius gate");
+                } else {
+                    frame_error++;
+                    if (similarity <= similarity_threshold)
+                    {
+                        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "error tf detected, similarity  : %f, threshold: %f", similarity, similarity_threshold);
+                    }
+                    if (error_radius >= radius_threshold)
+                    {
+                        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "error tf detected, error_raidus: %f, threshold: %f", error_radius, radius_threshold);
+                    }
+                }
+            }
+
+            if (measurement_valid) {
                 tfs.push_back(id_and_tf_vec[index_marker1].second);   // depth_camera_to_marker1_real
                 tfs.push_back(id_and_tf_vec[index_marker2].second);   // depth_camera_to_marker2_real
-
-                auto end_time = this->get_clock()->now().seconds();
-                auto start_time = rclcpp::Time(msg_img->header.stamp).seconds();
-                auto delta_time = end_time - start_time;
-                RCLCPP_DEBUG(get_logger(), "cost time: %f second.", delta_time);
-
-                aruco_msgs::msg::PoseWithId pose_with_id_msg;
-                pose_with_id_msg.pose.header.stamp = msg_img->header.stamp;
-                pose_with_id_msg.pose.header.frame_id = std::string("charger");
-                pose_with_id_msg.marker_id = marker_id;
-                pose_with_id_msg.similarity = similarity;
-                pose_with_id_msg.radius = error_radius;
-                auto tf_charger_to_baselink_dummy = tf_marker1_to_charger.inverse() * tf_real_to_dummy.inverse()
+                tf_charger_to_baselink_dummy = tf_marker1_to_charger.inverse() * tf_real_to_dummy.inverse()
                     * tf_camera_to_marker1.inverse() * tf_baselink_to_camera.inverse() * tf_base_link_to_dummy_base_link;
-                tf2::toMsg(tf_charger_to_baselink_dummy, pose_with_id_msg.pose.pose);
-                pose_with_id_pub->publish(pose_with_id_msg);
-
-                // pub 充电桩范围内marker
-                publishRectMarker();
-
-                // ========== 判断是否在充电桩范围内 ==========
-                // 提取相对于 base_link_dummy 的位姿
-                double x = tf_charger_to_baselink_dummy.getOrigin().x();
-                double y = tf_charger_to_baselink_dummy.getOrigin().y();
-                double yaw = tf2::getYaw(tf_charger_to_baselink_dummy.getRotation());
-                RCLCPP_DEBUG(get_logger(), "x: %.2f, y: %.2f, yaw: %.2f", x, y, yaw);
-                RCLCPP_DEBUG(get_logger(), "pose_x_min_: %.2f, pose_x_max_: %.2f", pose_x_min_, pose_x_max_);
-                RCLCPP_DEBUG(get_logger(), "pose_y_min_: %.2f, pose_y_max_: %.2f", pose_y_min_, pose_y_max_);
-                RCLCPP_DEBUG(get_logger(), "yaw_min_: %.2f, yaw_max_: %.2f", yaw_min_, yaw_max_);
-                if (x > pose_x_min_ && x < pose_x_max_ &&
-                    y > pose_y_min_ && y < pose_y_max_ &&
-                    yaw > yaw_min_ && yaw < yaw_max_)
-                {
-                    in_range = true;
-                    RCLCPP_DEBUG(get_logger(), "in charger range");
-                }
-                else
-                {
-                    in_range = false;
-                    RCLCPP_DEBUG(get_logger(), "not in charger range");
-                }
             }
-            else
+        }
+
+        // [pose_opt 阶段4] 对 charger->base_link_dummy 的 (x,y,yaw) 做互补滤波 + 门控 + 短时 hold
+        double x_f = 0.0, y_f = 0.0, yaw_f = 0.0;
+        std::string filter_dbg = "none";
+        const double x_meas = measurement_valid ? tf_charger_to_baselink_dummy.getOrigin().x() : 0.0;
+        const double y_meas = measurement_valid ? tf_charger_to_baselink_dummy.getOrigin().y() : 0.0;
+        const double yaw_meas = measurement_valid ? tf2::getYaw(tf_charger_to_baselink_dummy.getRotation()) : 0.0;
+        const bool filter_ok = updatePoseFilter(img_stamp, x_meas, y_meas, yaw_meas,
+                                                used_joint_pnp ? joint_rms : 0.5,
+                                                measurement_valid, x_f, y_f, yaw_f, filter_dbg);
+
+        if (filter_dbg == "hold_predict" || filter_dbg == "gate_reject_hold") {
+            frame_filter_hold_++;
+        }
+        if (filter_dbg == "gate_reject" || filter_dbg == "gate_reject_hold") {
+            frame_filter_gate_++;
+        }
+
+        if (filter_ok) {
+            tf2::Transform tf_pub = measurement_valid ? tf_charger_to_baselink_dummy : last_tf_charger_to_baselink_dummy_;
+            tf_pub = replaceSe2(tf_pub, x_f, y_f, yaw_f);
+            last_tf_charger_to_baselink_dummy_ = tf_pub;
+
+            aruco_msgs::msg::PoseWithId pose_with_id_msg;
+            pose_with_id_msg.pose.header.stamp = msg_img->header.stamp;
+            pose_with_id_msg.pose.header.frame_id = std::string("charger");
+            pose_with_id_msg.marker_id = marker_id;
+            pose_with_id_msg.similarity = similarity;
+            pose_with_id_msg.radius = error_radius;
+            tf2::toMsg(tf_pub, pose_with_id_msg.pose.pose);
+            pose_with_id_pub->publish(pose_with_id_msg);
+            publishRectMarker();
+
+            RCLCPP_DEBUG(get_logger(),
+                         "[pose_opt] pose pub src=%s joint=%d rms=%.3f meas=(%.4f,%.4f,%.4f) filt=(%.4f,%.4f,%.4f) dbg=%s",
+                         measurement_valid ? "meas" : "hold", used_joint_pnp ? 1 : 0, joint_rms,
+                         x_meas, y_meas, yaw_meas, x_f, y_f, yaw_f, filter_dbg.c_str());
+
+            if (x_f > pose_x_min_ && x_f < pose_x_max_ &&
+                y_f > pose_y_min_ && y_f < pose_y_max_ &&
+                yaw_f > yaw_min_ && yaw_f < yaw_max_)
             {
-                frame_error++;
-                if (similarity <= similarity_threshold)
-                {
-                    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "error tf detected, similarity  : %f, threshold: %f", similarity, similarity_threshold);
-                }
-                if (error_radius >= radius_threshold)
-                {
-                    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "error tf detected, error_raidus: %f, threshold: %f", error_radius, radius_threshold);
-                }
-                // 验证失败，不在范围内
-                in_range = false;
+                in_range = true;
             }
+
+            // hold 期间维持 marker_visible，避免对接状态机因单帧丢检立刻退出
+            if (!marker_detect_status.marker_visible && (filter_dbg == "hold_predict" || filter_dbg == "gate_reject_hold")) {
+                marker_detect_status.marker_visible = true;
+                marker_detect_status.marker_id = marker_id;
+                marker_detect_status.marker_id_correction = marker_id_correction;
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
+                                     "[pose_opt] detection lost, holding pose (dbg=%s)", filter_dbg.c_str());
+            }
+        } else if (!measurement_valid) {
+            RCLCPP_DEBUG(get_logger(), "[pose_opt] no pose this frame, filter_dbg=%s", filter_dbg.c_str());
         }
-        else
+
+        if (marker_detect_status.marker_visible != marker_visible_last)
         {
-            // 标记不可见，不在范围内
-            in_range = false;
+            RCLCPP_INFO(get_logger(), "/marker_visible status change from %s to %s",
+                marker_visible_last ? "true" : "false",
+                marker_detect_status.marker_visible ? "true" : "false"
+            );
+            detect_status->publish(marker_detect_status);
+            marker_visible_last = marker_detect_status.marker_visible;
         }
 
-        // 更新原子变量
         detecting_in_charger_range_ = in_range;
-
-        // geometry_msgs::msg::TransformStamped tf_baselink_to_baselink_dummy_msg;
-        // tf_baselink_to_baselink_dummy_msg.header.frame_id = std::string("base_link");
-        // tf_baselink_to_baselink_dummy_msg.header.stamp = msg_img->header.stamp;
-        // tf_baselink_to_baselink_dummy_msg.child_frame_id = std::string("base_link_dummy");
-        // tf2::toMsg(tf_base_link_to_dummy_base_link, tf_baselink_to_baselink_dummy_msg.transform);
-        // tfs.push_back(tf_baselink_to_baselink_dummy_msg); // base_link_to_base_link_dummy
 
         pub_detections->publish(msg_detections);
         tf_broadcaster.sendTransform(tfs);
@@ -1066,8 +1188,222 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
     if (frame_detected > 0){
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000, "frame_detected_rate: %f", frame_detected / (float)frame_all);
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000, "tf error rate: %f", frame_error / (float)frame_detected);
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 10000,
+                             "[pose_opt] joint_ok=%d joint_fail=%d hold=%d gate=%d",
+                             frame_joint_ok_, frame_joint_fail_, frame_filter_hold_, frame_filter_gate_);
     }
     
+}
+
+double AprilTagDoubleNode::wrapPi(double a)
+{
+    return std::atan2(std::sin(a), std::cos(a));
+}
+
+void AprilTagDoubleNode::resetPoseFilter()
+{
+    pose_filter_inited_ = false;
+    last_good_pose_valid_ = false;
+    filt_x_ = 0.0;
+    filt_y_ = 0.0;
+    filt_yaw_ = 0.0;
+    filt_vx_ = 0.0;
+    filt_vy_ = 0.0;
+    filt_omega_ = 0.0;
+    last_tf_charger_to_baselink_dummy_.setIdentity();
+    RCLCPP_INFO(get_logger(), "[pose_opt] pose filter reset");
+}
+
+tf2::Transform AprilTagDoubleNode::replaceSe2(const tf2::Transform& src, double x, double y, double yaw)
+{
+    tf2::Transform out = src;
+    const tf2::Vector3 o = out.getOrigin();
+    out.setOrigin(tf2::Vector3(x, y, o.z()));
+    double roll = 0.0;
+    double pitch = 0.0;
+    double unused_yaw = 0.0;
+    tf2::Matrix3x3(out.getRotation()).getRPY(roll, pitch, unused_yaw);
+    (void)unused_yaw;
+    tf2::Quaternion q;
+    q.setRPY(roll, pitch, yaw);
+    out.setRotation(q);
+    return out;
+}
+
+bool AprilTagDoubleNode::solveJointTagPnP(apriltag_detection_t* det1,
+                                          apriltag_detection_t* det2,
+                                          const std::array<double, 4>& intr,
+                                          double tagsize,
+                                          tf2::Transform& tf_cam_to_m1,
+                                          double& rms)
+{
+    const std::vector<cv::Point3d> obj1 = apriltag_object_points(tagsize);
+    const std::vector<cv::Point2d> img1 = apriltag_image_points(det1);
+    const std::vector<cv::Point3d> obj2_local = apriltag_object_points(tagsize);
+    const std::vector<cv::Point2d> img2 = apriltag_image_points(det2);
+
+    // dummy 系下 m1->m2 已知；变到 AprilTag real 系后再拼 8 个物体点
+    // T_m1real_m2real = T_real_dummy * T_m1dummy_m2dummy * T_real_dummy^{-1}
+    const tf2::Transform T_m1_m2_real =
+        tf_real_to_dummy * tf_marker1_to_marker2_fixed * tf_real_to_dummy.inverse();
+
+    std::vector<cv::Point3d> object_pts;
+    std::vector<cv::Point2d> image_pts;
+    object_pts.reserve(8);
+    image_pts.reserve(8);
+    object_pts.insert(object_pts.end(), obj1.begin(), obj1.end());
+    image_pts.insert(image_pts.end(), img1.begin(), img1.end());
+    for (size_t i = 0; i < obj2_local.size(); ++i) {
+        const tf2::Vector3 p = T_m1_m2_real * tf2::Vector3(obj2_local[i].x, obj2_local[i].y, obj2_local[i].z);
+        object_pts.emplace_back(p.x(), p.y(), p.z());
+        image_pts.push_back(img2[i]);
+    }
+
+    const cv::Matx33d K = camera_matrix_from_intr(intr);
+    cv::Mat rvec, tvec;
+    if (!solve_pnp_ippe_then_iterative(object_pts, image_pts, K, rvec, tvec, get_logger(), "joint8")) {
+        return false;
+    }
+    rms = reprojection_rms(object_pts, image_pts, K, rvec, tvec);
+    tf2::fromMsg(tf_from_rt(tvec, rvec), tf_cam_to_m1);
+
+    RCLCPP_DEBUG(get_logger(),
+                 "[pose_opt] joint8 t=(%.4f,%.4f,%.4f) m2_in_m1real=(%.4f,%.4f,%.4f)",
+                 tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2),
+                 T_m1_m2_real.getOrigin().x(), T_m1_m2_real.getOrigin().y(), T_m1_m2_real.getOrigin().z());
+    return true;
+}
+
+bool AprilTagDoubleNode::updatePoseFilter(const rclcpp::Time& stamp,
+                                          double x_meas,
+                                          double y_meas,
+                                          double yaw_meas,
+                                          double rms,
+                                          bool measurement_valid,
+                                          double& x_out,
+                                          double& y_out,
+                                          double& yaw_out,
+                                          std::string& dbg)
+{
+    if (!enable_pose_filter_) {
+        if (!measurement_valid) {
+            dbg = "filter_disabled_no_meas";
+            return false;
+        }
+        x_out = x_meas;
+        y_out = y_meas;
+        yaw_out = yaw_meas;
+        last_good_pose_valid_ = true;
+        last_good_pose_stamp_ = stamp;
+        dbg = "filter_disabled";
+        return true;
+    }
+
+    if (!measurement_valid) {
+        if (!pose_filter_inited_ || !last_good_pose_valid_) {
+            dbg = "hold_no_history";
+            return false;
+        }
+        const double since_good = (stamp - last_good_pose_stamp_).seconds();
+        if (since_good < 0.0 || since_good > pose_hold_sec_) {
+            dbg = "hold_timeout";
+            return false;
+        }
+        double dt = (stamp - filt_stamp_).seconds();
+        if (dt < 0.0) {
+            dt = 0.0;
+        }
+        dt = std::min(dt, pose_hold_sec_);
+        x_out = filt_x_ + filt_vx_ * dt;
+        y_out = filt_y_ + filt_vy_ * dt;
+        yaw_out = wrapPi(filt_yaw_ + filt_omega_ * dt);
+        filt_x_ = x_out;
+        filt_y_ = y_out;
+        filt_yaw_ = yaw_out;
+        filt_stamp_ = stamp;
+        dbg = "hold_predict";
+        RCLCPP_DEBUG(get_logger(), "[pose_opt] filter HOLD dt=%.3f since_good=%.3f pose=(%.4f,%.4f,%.4f)",
+                     dt, since_good, x_out, y_out, yaw_out);
+        return true;
+    }
+
+    if (!pose_filter_inited_) {
+        filt_x_ = x_meas;
+        filt_y_ = y_meas;
+        filt_yaw_ = yaw_meas;
+        filt_vx_ = 0.0;
+        filt_vy_ = 0.0;
+        filt_omega_ = 0.0;
+        filt_stamp_ = stamp;
+        pose_filter_inited_ = true;
+        last_good_pose_valid_ = true;
+        last_good_pose_stamp_ = stamp;
+        x_out = x_meas;
+        y_out = y_meas;
+        yaw_out = yaw_meas;
+        dbg = "filter_init";
+        RCLCPP_INFO(get_logger(), "[pose_opt] filter INIT meas=(%.4f,%.4f,%.4f) rms=%.3f",
+                    x_meas, y_meas, yaw_meas, rms);
+        return true;
+    }
+
+    double dt = (stamp - filt_stamp_).seconds();
+    if (dt <= 1e-4 || dt > 1.0) {
+        dt = 0.1;
+    }
+
+    const double x_pred = filt_x_ + filt_vx_ * dt;
+    const double y_pred = filt_y_ + filt_vy_ * dt;
+    const double yaw_pred = wrapPi(filt_yaw_ + filt_omega_ * dt);
+    const double dx = x_meas - x_pred;
+    const double dy = y_meas - y_pred;
+    const double dyaw = wrapPi(yaw_meas - yaw_pred);
+    const double dist = std::hypot(dx, dy);
+
+    if (dist > pose_gate_xy_ || std::abs(dyaw) > pose_gate_yaw_) {
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500,
+                             "[pose_opt] filter GATE reject dist=%.4f (th=%.4f) dyaw=%.4f (th=%.4f) rms=%.3f",
+                             dist, pose_gate_xy_, dyaw, pose_gate_yaw_, rms);
+        const double since_good = (stamp - last_good_pose_stamp_).seconds();
+        if (last_good_pose_valid_ && since_good >= 0.0 && since_good <= pose_hold_sec_) {
+            x_out = x_pred;
+            y_out = y_pred;
+            yaw_out = yaw_pred;
+            filt_x_ = x_out;
+            filt_y_ = y_out;
+            filt_yaw_ = yaw_out;
+            filt_stamp_ = stamp;
+            dbg = "gate_reject_hold";
+            return true;
+        }
+        dbg = "gate_reject";
+        return false;
+    }
+
+    double alpha = pose_filter_alpha_max_ * std::exp(-std::max(0.0, rms) / 1.0);
+    alpha = std::max(0.05, std::min(pose_filter_alpha_max_, alpha));
+
+    x_out = alpha * x_meas + (1.0 - alpha) * x_pred;
+    y_out = alpha * y_meas + (1.0 - alpha) * y_pred;
+    yaw_out = wrapPi(yaw_pred + alpha * dyaw);
+
+    const double vmax = 1.5;
+    const double wmax = 1.0;
+    filt_vx_ = std::max(-vmax, std::min(vmax, (x_out - filt_x_) / dt));
+    filt_vy_ = std::max(-vmax, std::min(vmax, (y_out - filt_y_) / dt));
+    filt_omega_ = std::max(-wmax, std::min(wmax, wrapPi(yaw_out - filt_yaw_) / dt));
+
+    filt_x_ = x_out;
+    filt_y_ = y_out;
+    filt_yaw_ = yaw_out;
+    filt_stamp_ = stamp;
+    last_good_pose_valid_ = true;
+    last_good_pose_stamp_ = stamp;
+    dbg = "filter_fuse";
+    RCLCPP_DEBUG(get_logger(),
+                 "[pose_opt] filter FUSE dt=%.3f alpha=%.3f rms=%.3f meas=(%.4f,%.4f,%.4f) out=(%.4f,%.4f,%.4f)",
+                 dt, alpha, rms, x_meas, y_meas, yaw_meas, x_out, y_out, yaw_out);
+    return true;
 }
 
 bool AprilTagDoubleNode::in_idRanges(std::vector<int> ids)
@@ -1102,6 +1438,14 @@ AprilTagDoubleNode::onParameter(const std::vector<rclcpp::Parameter>& parameters
         IF("detector.debug", td->debug)
         IF("max_hamming", max_hamming)
         IF("profile", profile)
+        IF("enable_esf_refine", enable_esf_refine_)
+        IF("enable_joint_pnp", enable_joint_pnp_)
+        IF("enable_pose_filter", enable_pose_filter_)
+        IF("pose_rms_threshold", pose_rms_threshold_)
+        IF("pose_hold_sec", pose_hold_sec_)
+        IF("pose_gate_xy", pose_gate_xy_)
+        IF("pose_gate_yaw", pose_gate_yaw_)
+        IF("pose_filter_alpha_max", pose_filter_alpha_max_)
     }
     mutex.unlock();
     result.successful = true;

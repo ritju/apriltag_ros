@@ -7,10 +7,10 @@
 
         # see "apriltag.h" 'struct apriltag_detector' for more documentation on these optional parameters
         detector:
-            threads: 1          # number of threads
-            decimate: 2.0       # decimate resolution for quad detection
+            threads: 2          # [pose_opt] 原 1；decimate=1 后补算力
+            decimate: 1.0       # [pose_opt] 原 2.0；四边形在全分辨率提取，远距离角点更准
             blur: 0.0           # sigma of Gaussian blur for quad detection
-            refine: True        # snap to strong gradients
+            refine: True        # snap to strong gradients（与后续 ESF 叠加，不要关）
             sharpening: 0.25    # sharpening of decoded images
             debug: False        # write additional debugging images to current working directory
 
