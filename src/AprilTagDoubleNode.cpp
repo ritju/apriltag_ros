@@ -1178,7 +1178,7 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
 
         pub_detections->publish(msg_detections);
         tf_broadcaster.sendTransform(tfs);
-        zarray_destroy(detections);
+        apriltag_detections_destroy(detections);
     }
     catch(const char* msg)
     {
@@ -1192,7 +1192,6 @@ void AprilTagDoubleNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr&
                              "[pose_opt] joint_ok=%d joint_fail=%d hold=%d gate=%d",
                              frame_joint_ok_, frame_joint_fail_, frame_filter_hold_, frame_filter_gate_);
     }
-    
 }
 
 double AprilTagDoubleNode::wrapPi(double a)
