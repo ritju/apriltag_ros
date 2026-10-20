@@ -9,9 +9,9 @@ apriltag_double_node:
     yaw_max: 3.14
 
     # [pose_opt] 精度优化（仅 AprilTagDoubleNode）
-    enable_esf_refine: true
-    enable_joint_pnp: true
-    enable_pose_filter: true
+    enable_esf_refine: false
+    enable_joint_pnp: false
+    enable_pose_filter: false
     pose_rms_threshold: 1.5
     pose_hold_sec: 0.3
     pose_gate_xy: 0.05
