@@ -1,0 +1,62 @@
+# 双码节点 apriltag_double_node 的默认参数。
+# 第一次启动时，launch 会把本文件拷到 ~/map/config/apriltag_ros/apriltag_double.yaml。
+# 该文件已存在时不再覆盖，之后只读用户目录里的那份。
+# 以下参数由 launch 按环境变量在本文件之后注入，写在这里不会生效：
+#   size、marker_frame_translation、similarity_threshold、radius_threshold、
+#   base_link_dummy_transform_x/y/z、marker_id_and_bluetooth_mac_vec
+apriltag_double_node:
+  ros__parameters:
+    # 图像传输方式。raw 为未压缩图像；也可改为 compressed。
+    image_transport: raw
+    # AprilTag 家族名，须与检测器加载的家族一致。当前为 36h11（36 位，最小码距 11）。
+    family: 36h11
+    # 允许的最大纠错位数。检测结果的 hamming 大于该值则丢弃，不参与位姿。
+    # 检测器加入家族时固定只建到 2 位纠错表，因此 3 及以上与 2 效果相同，不会出现 hamming>=3 的检测。
+    max_hamming: 4
+
+    detector:
+      # 检测线程数。decimate=1 全分辨率时计算量更大，由原来的 1 改为 2。
+      threads: 2
+      # 四边形提取的降采样系数。1.0 为全分辨率，角点更细；原值为 2.0，远距离会更糙但更快。
+      decimate: 1.0
+      # 四边形检测前高斯模糊的 sigma。0 表示不模糊。
+      blur: 0.0
+      # AprilTag 自带的贴边：把四边形边吸附到强梯度。与下面的 enable_esf_refine 是两层，这一层建议保持打开。
+      refine: true
+      # 解码图像的锐化强度，只影响比特解码，不直接改角点。
+      sharpening: 0.25
+      # 为 true 时向当前工作目录写调试图像。
+      debug: false
+
+    # 充电范围内判断的 x 下限（米），坐标系为 charger。只决定“在不在范围内”和范围框，不改 /pose_with_id 的数值。
+    pose_x_min: -0.855
+    # 充电范围内判断的 x 上限（米）。
+    pose_x_max: -0.10
+    # 充电范围内判断的 y 下限（米）。
+    pose_y_min: -0.35
+    # 充电范围内判断的 y 上限（米）。
+    pose_y_max: 0.35
+    # 充电范围内判断的 yaw 下限（弧度）。
+    yaw_min: -3.14
+    # 充电范围内判断的 yaw 上限（弧度）。
+    yaw_max: 3.14
+
+    # 亚像素修角点。true 时用 Sigmoid 边缘拟合改写四个角点后再做 PnP。
+    # false 时只用 detector.refine 贴梯度得到的角点。角点基准不同，位姿会差一截。
+    enable_esf_refine: false
+    # 双标签 8 点联合 PnP。true 且重投影误差低于 pose_rms_threshold 时采用联合解，否则退回两个独立 PnP。
+    # false 时始终走独立 PnP，再用 similarity / radius 决定这帧是否可用。
+    enable_joint_pnp: false
+    # 对 /pose_with_id 里 charger 到 base_link_dummy 的 x、y、yaw 做互补滤波、跳变门控和短时保持。
+    # false 时测到的 x、y、yaw 原样发布。z、roll、pitch 无论开关都不滤波。
+    enable_pose_filter: false
+    # 联合 PnP 的重投影误差上限（像素）。仅 enable_joint_pnp 为 true 时使用。
+    pose_rms_threshold: 1.5
+    # 丢检或测量被门控拒绝后，沿用上一帧位姿的最长时间（秒）。仅 enable_pose_filter 为 true 时使用。
+    pose_hold_sec: 0.3
+    # x、y 相对预测值的跳变门限（米）。超过则拒绝本帧测量。仅滤波开启时使用。
+    pose_gate_xy: 0.05
+    # yaw 相对预测值的跳变门限（弧度）。超过则拒绝本帧测量。仅滤波开启时使用。
+    pose_gate_yaw: 0.087
+    # 新测量在滤波里的最大权重。越小越贴近上一帧，越大越跟手。实际权重还会随重投影误差减小。
+    pose_filter_alpha_max: 0.4

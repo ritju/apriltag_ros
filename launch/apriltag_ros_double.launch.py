@@ -1,4 +1,5 @@
 import os
+import shutil
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
@@ -117,12 +118,17 @@ def launch_setup(context, *args, **kwargs):
         'base_link_dummy_transform_z': base_link_dummy_transform_z,
     }    
 
-    # get pkg path
+    # 包内默认参数。第一次启动拷到用户目录，之后只读用户目录里的文件。
     apriltag_pkg_path = get_package_share_directory('apriltag_ros')
-
-    # get params file
-    apriltag_node_params_file1 = os.path.join(apriltag_pkg_path, 'cfg', 'tags_36h11.yaml')
-    apriltag_node_params_file2 = os.path.join(apriltag_pkg_path, 'cfg', 'params.yaml')
+    default_params_file = os.path.join(apriltag_pkg_path, 'cfg', 'apriltag_double.yaml')
+    user_params_dir = os.path.expanduser('~/map/config/apriltag_ros')
+    user_params_file = os.path.join(user_params_dir, 'apriltag_double.yaml')
+    os.makedirs(user_params_dir, exist_ok=True)
+    if not os.path.isfile(user_params_file):
+        shutil.copy(default_params_file, user_params_file)
+        print(f'Copied default apriltag params to {user_params_file}')
+    else:
+        print(f'Using existing apriltag params {user_params_file}')
 
     image_topic = '/camera3/color/image_raw'    
     try :
@@ -156,7 +162,7 @@ def launch_setup(context, *args, **kwargs):
         name='apriltag_double_node',
         namespace='',
         output='screen',
-        parameters=[apriltag_node_params_file1, apriltag_node_params_file2, apriltag_ros_extra_params],
+        parameters=[user_params_file, apriltag_ros_extra_params],
         remappings=[('/image_rect', image_topic),
                     ('/camera_info', camera_info_topic)],
         arguments=['--ros-args', '--log-level', ['apriltag_double_node:=', LaunchConfiguration('log_level')]],
@@ -174,7 +180,7 @@ def launch_setup(context, *args, **kwargs):
     #             package='apriltag_ros',
     #             plugin='AprilTagDoubleNode',
     #             name='apriltag_double_node',
-    #             parameters=[apriltag_node_params_file1, apriltag_node_params_file2, apriltag_ros_extra_params],
+    #             parameters=[user_params_file, apriltag_ros_extra_params],
     #             remappings=[('/image_rect', image_topic),
     #                         ('/camera_info', camera_info_topic)],
     #         ),
