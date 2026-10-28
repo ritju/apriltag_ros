@@ -118,10 +118,9 @@ def launch_setup(context, *args, **kwargs):
         'base_link_dummy_transform_z': base_link_dummy_transform_z,
     }    
 
-    # 包内默认参数。第一次启动拷到用户目录，之后只读用户目录里的文件。
     apriltag_pkg_path = get_package_share_directory('apriltag_ros')
     default_params_file = os.path.join(apriltag_pkg_path, 'cfg', 'apriltag_double.yaml')
-    user_params_dir = os.path.expanduser('~/map/config/apriltag_ros')
+    user_params_dir = os.path.expanduser('/map/config/apriltag_ros')
     user_params_file = os.path.join(user_params_dir, 'apriltag_double.yaml')
     os.makedirs(user_params_dir, exist_ok=True)
     if not os.path.isfile(user_params_file):

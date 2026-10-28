@@ -1,7 +1,4 @@
 # 双码节点 apriltag_double_node 的默认参数。
-# 第一次启动时，launch 会把本文件拷到 ~/map/config/apriltag_ros/apriltag_double.yaml。
-# 该文件已存在时不再覆盖，之后只读用户目录里的那份。
-# 以下参数由 launch 按环境变量在本文件之后注入，写在这里不会生效：
 #   size、marker_frame_translation、similarity_threshold、radius_threshold、
 #   base_link_dummy_transform_x/y/z、marker_id_and_bluetooth_mac_vec
 apriltag_double_node:
